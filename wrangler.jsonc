@@ -1,0 +1,8 @@
+{
+  // Cloudflare Workers 靜態網站部署：先 npm run build，再上傳 dist/
+  // 沒有這個檔時 wrangler 會自動偵測框架並嘗試改寫 vite.config.js（含 DEV 自訂外掛會解析失敗）
+  "name": "pitlane-studio",
+  "compatibility_date": "2026-10-01",
+  "build": { "command": "npm run build" },
+  "assets": { "directory": "./dist", "not_found_handling": "single-page-application" }
+}
