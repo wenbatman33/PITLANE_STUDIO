@@ -1,7 +1,7 @@
 // 入口：組裝場景、狀態機（展示間 ⇄ 駕駛）、主迴圈
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
-import { HOTSPOT_ORDER, LEVELS } from './content.js';
+import { HOTSPOT_ORDER, LEVELS, LINE_STYLES } from './content.js';
 import { buildCar } from './car.js';
 import { loadCarModel } from './carModel.js';
 import { createWorld } from './environment.js';
@@ -134,6 +134,7 @@ const ui = new UI({
   onReset: () => resetDrive(),
   onMute: () => toggleMute(),
   onDemo: () => (game.demo ? stopDemo() : startDemo()),
+  onLine: () => toggleLine(),
 });
 ui.initDifficulty((level) => applyLevel(level));
 ui.initSession(game.session, (id) => {
@@ -392,9 +393,30 @@ let guideLine = null;
 let assists = null;
 game.level = LEVELS[storageGet('pitlane.level', 'rookie')] ? storageGet('pitlane.level', 'rookie') : 'rookie';
 
+// 建議路線：安全路線（往中心收、保守速度）或精確最佳賽車線；玩家按 L 切換後記住，沒選過就用難度預設
+let guideKey = null;
+const lineStyle = () => {
+  const s = storageGet('pitlane.line', null);
+  return LINE_STYLES[s] ? s : LEVELS[game.level]?.lineStyle || 'safe';
+};
+function toggleLine() {
+  if (!track?.raceline) return;
+  const next = lineStyle() === 'best' ? 'safe' : 'best';
+  storageSet('pitlane.line', next);
+  buildGuide();
+  guideLine?.setVisible(LEVELS[game.level].line);
+  ui.setLineLabel(next);
+  ui.flashMessage(`${LINE_STYLES[next].name}：${LINE_STYLES[next].desc}`, 'info', 3);
+}
 function buildGuide() {
   if (!track?.raceline) return;
-  guide = createGuide(track.raceline, physParams, {}, track.points);
+  const opts = LINE_STYLES[lineStyle()].guide;
+  // 煞車距離與 ABS 有關：換難度（ABS 開關）也要重算
+  const key = JSON.stringify({ ...opts, abs: !!physParams.abs });
+  if (key === guideKey) return;
+  guideKey = key;
+  guideLine?.dispose();
+  guide = createGuide(track.raceline, physParams, opts, track.points);
   guideLine = createGuideLine(scene, guide);
   assists = {
     brake: brakeAssist(guide, guide.locator()),
@@ -402,8 +424,8 @@ function buildGuide() {
     lineKeep: lineKeepAssist(guide, guide.locator(), physParams, LEVELS.standard.lineKeep),
   };
   if (window.__pitlane) window.__pitlane.guide = guide;
-  // 沒有手動指定煞車看板的賽道：放在建議路線的重煞區結束點（彎道入口）前
-  if (!track.def.brakeZones) {
+  // 沒有手動指定煞車看板的賽道：放在建議路線的重煞區結束點（彎道入口）前（只算一次，換難度不重擺）
+  if (!track.def.brakeZones && !track.brakeZones.length) {
     const entries = heavyBrakeEntries(guide).map((i) => track.project(guide.line[i].x, guide.line[i].z).s);
     track.resetHint();
     track.setBrakeZones(entries.sort((a, b) => a - b));
@@ -419,7 +441,9 @@ function applyLevel(level) {
   physParams.abs = L.abs;
   physParams.esc = L.esc;
   physParams.steerAssist = L.keySteerAssist;
+  buildGuide();
   guideLine?.setVisible(L.line);
+  ui.setLineLabel(lineStyle());
   ui.setDifficulty(level, L);
 }
 
@@ -607,6 +631,7 @@ input.on('press', (k) => {
     openHotspot(HOTSPOT_ORDER[(i + d + HOTSPOT_ORDER.length) % HOTSPOT_ORDER.length]);
   }
   if (game.mode === 'drive') {
+    if (k === 'KeyL') toggleLine();
     if (k === 'KeyC') cycleCamera();
     if (k === 'KeyR') resetDrive();
   }

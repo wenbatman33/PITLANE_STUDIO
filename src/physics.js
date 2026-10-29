@@ -218,7 +218,8 @@ export class CarPhysics {
     }
     // 空轉速度（輪面比地面快多少 m/s），有遲滯讓甩尾能延續
     const spinTarget = drive > 0 && excess > 0 ? P.spinBase * Math.min(1, excess / (rearMax * 0.1)) + (excess / rearMax) * P.spinGain : 0;
-    const spinRate = spinTarget > this.spinVel ? 70 : 32;
+    // 空轉上升速度（m/s²）：越小越漸進，車手來得及收油；下降較快
+    const spinRate = spinTarget > this.spinVel ? (P.spinRise ?? 70) : 32;
     this.spinVel += clamp(spinTarget - this.spinVel, -spinRate * dt, spinRate * dt);
     const slideMu = rearMax * 0.92;
     const sMag = Math.hypot(this.spinVel, vRL) || 1;

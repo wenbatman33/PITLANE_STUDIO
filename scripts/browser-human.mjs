@@ -3,6 +3,7 @@
 //   需要 dev server（npm run dev，預設 http://localhost:5188/）；Chrome 無畫面執行，結束一定關閉
 //   操作：W／空白鍵／A／D 真實按鍵；反應 0.25 秒；方向鍵只會按住／放開；煞車只看地上路線顏色
 //   量測：遊戲自己的計時器（圈速、該圈是否有效）＋ 嚴格出界（車子中心超出柏油邊緣 1m＝四輪出界）
+//   負載保護：整台電腦 1 分鐘平均負載超過 LOAD_LIMIT（預設 20）就自動停止並關閉 Chrome
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -13,8 +14,10 @@ import { createDriver } from '../src/autopilot.js';
 const LEVEL = process.argv[2] || 'standard';
 const LAPS = Number(process.argv[3] || 2);
 const URL_ = process.argv[4] || 'http://localhost:5188/';
+const TRACK_ID = process.env.TRACK_ID || 'monza'; // 遊戲裡的賽道代號（monza、suzuka、budapest…）
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const PERSON = { reaction: 0.25, lookGain: 0.4, steerOn: (1.8 * Math.PI) / 180, minHold: 0.1, coastYellow: false };
+const LOAD_LIMIT = Number(process.env.LOAD_LIMIT || 20);
 const TIME_LIMIT = (LAPS + 1) * 150 * 1000;
 
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pitlane-chrome-'));
@@ -27,6 +30,15 @@ const cleanup = async () => {
   fs.rmSync(userDataDir, { recursive: true, force: true });
 };
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => cleanup().then(() => process.exit(1)));
+// 負載保護：每秒檢查一次
+const loadGuard = setInterval(() => {
+  const l = os.loadavg()[0];
+  if (l > LOAD_LIMIT) {
+    console.error(`系統負載 ${l.toFixed(1)} 超過 ${LOAD_LIMIT}，停止測試`);
+    clearInterval(loadGuard);
+    cleanup().then(() => process.exit(3));
+  }
+}, 1000);
 process.on('unhandledRejection', (e) => {
   console.error(e);
   cleanup().then(() => process.exit(1));
@@ -41,14 +53,17 @@ try {
     headless: 'new',
     userDataDir,
     protocolTimeout: 60000,
-    args: ['--no-first-run', '--no-default-browser-check', '--mute-audio', '--window-size=1280,780', '--use-angle=metal', '--enable-gpu'],
-    defaultViewport: { width: 1280, height: 780 },
+    args: ['--no-first-run', '--no-default-browser-check', '--mute-audio', '--window-size=960,540'],
+    defaultViewport: { width: 960, height: 540 },
   });
   const page = await browser.newPage();
-  await page.evaluateOnNewDocument((level) => {
+  await page.evaluateOnNewDocument((level, trackId) => {
     localStorage.setItem('pitlane.muted', 'true');
     localStorage.setItem('pitlane.level', JSON.stringify(level));
-  }, LEVEL);
+    localStorage.setItem('pitlane.session', JSON.stringify('practice'));
+    localStorage.setItem('pitlane.track', JSON.stringify(trackId));
+    localStorage.setItem('pitlane.cam', '0');
+  }, LEVEL, TRACK_ID);
   await page.goto(URL_, { waitUntil: 'load', timeout: 60000 });
   await page.waitForFunction(() => window.__pitlane?.guide && window.__pitlane?.track, { timeout: 60000 });
   await sleep(1500);
@@ -60,7 +75,7 @@ try {
   // 遊戲畫面上的建議路線（與玩家看到的同一份）
   const g = await page.evaluate(() => {
     const G = window.__pitlane.guide;
-    return { line: G.line, speed: Array.from(G.speed), zone: G.zone, n: G.n };
+    return { line: G.line, tan: G.tan, speed: Array.from(G.speed), zone: G.zone, n: G.n };
   });
   const guide = {
     ...g,
@@ -169,8 +184,9 @@ try {
   );
   const secs = (Date.now() - t0) / 1000;
   console.log(
-    `【瀏覽器實測・${LEVEL}】完成 ${laps.length}/${LAPS} 圈｜有效圈 ${laps.filter((l) => l.valid).length}｜四輪出界共 ${laps.reduce((a, l) => a + l.outs.length, 0)} 次｜甩尾最大 ${maxOver.toFixed(1)}°｜按鍵變化 ${(keyChanges / secs).toFixed(1)} 次/秒｜畫面 ${fps} fps｜判斷 ${(loops / secs).toFixed(0)} 次/秒`,
+    `【瀏覽器實測・${TRACK_ID}・${LEVEL}】完成 ${laps.length}/${LAPS} 圈｜有效圈 ${laps.filter((l) => l.valid).length}｜四輪出界共 ${laps.reduce((a, l) => a + l.outs.length, 0)} 次｜甩尾最大 ${maxOver.toFixed(1)}°｜按鍵變化 ${(keyChanges / secs).toFixed(1)} 次/秒｜畫面 ${fps} fps｜判斷 ${(loops / secs).toFixed(0)} 次/秒`,
   );
 } finally {
+  clearInterval(loadGuard);
   await cleanup();
 }

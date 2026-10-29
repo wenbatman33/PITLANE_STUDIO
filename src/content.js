@@ -80,6 +80,12 @@ export const LIVERIES = [
 ];
 
 // 難度：新手（路線＋自動煞車＋轉向輔助）、標準（路線＋自己煞車）、專家（全部關閉）
+// 地上建議路線的兩種：安全（往中心收、速度保守）與最佳（原始最佳賽車線、速度用 95% 極限）
+export const LINE_STYLES = {
+  safe: { name: '安全路線', desc: '往賽道中間收、速度保守，比較不會出界', guide: {} },
+  best: { name: '最佳路線', desc: '精確的最佳賽車線：外－內－外貼著賽道邊緣、速度接近極限，要很精準', guide: { lineBlend: 0, grip: 0.95, brakeGrip: 0.95 } },
+};
+
 export const LEVELS = {
   rookie: {
     name: '新手',
@@ -118,16 +124,19 @@ export const LEVELS = {
   },
   expert: {
     name: '專家',
-    desc: '沒有路線、沒有任何輔助，ABS／循跡控制／車身穩定全關。',
-    line: false,
+    desc: '地上是精確的最佳賽車線（貼著極限算）；沒有任何輔助，ABS／循跡控制／車身穩定全關。',
+    line: true,
+    lineStyle: 'best', // 預設顯示精確最佳賽車線（玩家可按 L 切換）
     brakeAssist: false,
     steerAssist: false,
     tc: false,
     abs: false,
     esc: 0,
-    keySteerAssist: false,
+    // 鍵盤轉向依車速限制打角（等同方向盤靈敏度，F1 遊戲用鍵盤／手把也都有），不算駕駛輔助
+    keySteerAssist: true,
     tutorial: [
       ['!', '所有輔助已關閉：煞車會鎖死、出彎油門太大會甩尾'],
+      ['路線', '地上是最佳賽車線：外－內－外貼著賽道邊緣走，紅色＝這個速度到那裡必須在煞車'],
       ['看板', '彎前的 150／100／50 看板是煞車參考點'],
     ],
   },

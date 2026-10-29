@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import * as THREE from 'three';
 import { CarPhysics } from '../src/physics.js';
 import { CONFIG } from '../src/config.js';
-import { LEVELS } from '../src/content.js';
+import { LEVELS, LINE_STYLES } from '../src/content.js';
 import { createGuide, createDriver, brakeAssist, steerAssist, lineKeepAssist } from '../src/autopilot.js';
 import { clamp } from '../src/util.js';
 
@@ -86,7 +86,9 @@ const rl = readCsv(`${TRACK}_raceline.csv`);
 const rlCurve = new THREE.CatmullRomCurve3(rl.map(([x, y]) => new THREE.Vector3(-x, 0, y)), true, 'centripetal');
 rlCurve.arcLengthDivisions = rl.length * 8;
 const RL = rlCurve.getSpacedPoints(Math.round(rlCurve.getLength() / 2)).slice(0, -1).map((p) => ({ x: p.x, z: p.z }));
-const guide = createGuide(RL, P, OVERRIDE.guide || {}, Pts.map((p) => ({ x: p.x, z: p.z })));
+// 路線：LINE=safe|best（預設用難度的預設路線）
+const LINE = process.env.LINE || LV.lineStyle || 'safe';
+const guide = createGuide(RL, P, { ...LINE_STYLES[LINE].guide, ...(OVERRIDE.guide || {}) }, Pts.map((p) => ({ x: p.x, z: p.z })));
 
 // ---------- 一位玩家連跑 LAPS 圈 ----------
 function drive(person, hz) {
@@ -112,6 +114,7 @@ function drive(person, hz) {
   let spinning = false;
   let step = 0;
   const hist = [];
+  const spinLog = [];
   while (t < 140 * (LAPS + 1) && laps.length < LAPS) {
     if (step % every === 0) {
       const pr = project(car.x, car.z);
@@ -147,6 +150,10 @@ function drive(person, hz) {
       prevS = pr.s;
     }
     car.step(dt, ctl);
+    if (process.env.SPINS && step % 24 === 0) {
+      spinLog.push(`${(car.speed * 3.6).toFixed(0)}油${ctl.throttle}煞${ctl.brake}舵${ctl.steer}β${(car.beta / DEG).toFixed(0)}空${car.spinVel.toFixed(1)}鎖${car.lock.toFixed(1)}`);
+      if (spinLog.length > 5) spinLog.shift();
+    }
     if (process.env.DEBUG && step % Number(process.env.DEBUG) === 0) {
       const pr = project(car.x, car.z);
       console.log(`t=${t.toFixed(1)} s=${pr.s.toFixed(0)} 偏${pr.lat.toFixed(1)} v=${(car.speed * 3.6).toFixed(0)}/${(ctl.targetSpeed * 3.6).toFixed(0)} 油${ctl.throttle} 煞${ctl.brake} 舵${ctl.steer} 圈${lap}`);
@@ -157,6 +164,10 @@ function drive(person, hz) {
       if (oversteer > 25 && !spinning) {
         cur.spins++;
         spinning = true;
+        if (process.env.SPINS) {
+          const pr = project(car.x, car.z);
+          console.log(`    ↻ 打轉 s=${pr.s.toFixed(0)} ${(car.speed * 3.6).toFixed(0)}km/h 油${ctl.throttle} 煞${ctl.brake} 舵${ctl.steer} 前輪${(car.steer / DEG).toFixed(1)}° 鎖死${car.lock.toFixed(2)} 空轉${car.spinVel.toFixed(1)} 檔${car.gear}｜前 1 秒：${spinLog.join(' / ')}`);
+        }
       }
       if (oversteer < 10) spinning = false;
       if (Math.max(car.slipF, car.slipR) - CONFIG.fx.skidThreshold > 0.9) cur.skid += dt; // 胎痕強度 > 0.15
@@ -172,7 +183,7 @@ const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 21474836
 const pick = (a, b) => a + (b - a) * rand();
 const fmt = (x) => `${Math.floor(x / 60)}:${(x % 60).toFixed(3).padStart(6, '0')}`;
 
-console.log(`【真人模式・${TRACK}・${LV.name}】${COUNT} 位玩家 × ${LAPS} 圈｜ABS ${P.abs ? '開' : '關'}・車身穩定 ${P.esc}・自動煞車 ${LV.brakeAssist ? '開' : '關'}・循跡輔助 ${LV.steerAssist ? '全自動' : LV.lineKeep || 0}`);
+console.log(`【真人模式・${TRACK}・${LV.name}・${LINE_STYLES[LINE].name}】${COUNT} 位玩家 × ${LAPS} 圈｜ABS ${P.abs ? '開' : '關'}・車身穩定 ${P.esc}・自動煞車 ${LV.brakeAssist ? '開' : '關'}・循跡輔助 ${LV.steerAssist ? '全自動' : LV.lineKeep || 0}`);
 let cleanLaps = 0;
 let totalLaps = 0;
 let cleanPeople = 0;

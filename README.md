@@ -26,6 +26,7 @@ npm run dev
 | R | 重置 |
 | M | 靜音 |
 | P | 示範駕駛（看怎麼開） |
+| L | 切換安全／最佳路線 |
 | H | 再看一次教學 |
 | Esc | 回展示間 |
 | Enter | 展示間開始駕駛 |
@@ -61,7 +62,14 @@ npm run dev
 | --- | --- | --- | --- | --- |
 | 新手（預設） | ✓ | ✓ | ✓（A／D 在路線上左右偏） | ✓ |
 | 標準 | ✓ | — | 循跡穩定 50%（自己轉向，遊戲幫你修一半） | ✓ |
-| 專家 | — | — | — | — |
+| 專家 | ✓（預設最佳路線） | — | — | — |
+
+專家模式關掉 ABS、循跡控制、車身穩定：鍵盤煞車按到底在中低速會鎖死（前輪鎖死就轉不了彎，要點放煞車），出彎油門太大後輪會空轉甩尾（空轉是漸進的，來得及收油反打）。按住方向鍵的打角仍依車速限制（等同方向盤靈敏度，不算駕駛輔助）。
+
+### 安全路線／最佳路線（按 L 切換）
+
+- **安全路線**（新手、標準預設）：往賽道中間收、速度保守，照著開比較不會出界
+- **最佳路線**（專家預設）：TUMFTM 資料庫的最小曲率賽車線原樣顯示，外－內－外貼著賽道邊緣、速度與煞車點用 95% 極限計算，適合練最快圈速；模擬真人照著開每圈約有 1～2 次四輪出界，需要很精準
 
 地上路線的顏色依你**目前的車速**即時變化（像 F1 遊戲的輔助線）：
 
@@ -74,7 +82,8 @@ npm run dev
 ```bash
 node scripts/human-test.mjs standard 12      # 真人模式：12 位照教學玩的模擬玩家各跑 3 圈（方向鍵只按住／放開、反應 0.2~0.3 秒、看路線顏色煞車）
 SEED=777 node scripts/human-test.mjs rookie  # 換一批玩家
-node scripts/browser-human.mjs standard 2    # 真的 Chrome 打開遊戲（需 npm run dev），送出真實按鍵跑 2 圈
+TRACK_ID=suzuka node scripts/browser-human.mjs standard 2   # 真的 Chrome 打開遊戲（需 npm run dev），送出真實按鍵跑 2 圈；負載超過 20 自動停止
+LINE=best TRACK=Suzuka node scripts/human-test.mjs standard  # 照「最佳路線」開
 node scripts/brake-turn.mjs standard         # 60~300 km/h 邊煞車邊轉向：車尾會甩出幾度
 node scripts/camera-jitter.mjs               # 全油門加速 14 秒：車子在畫面上的上下抖動（像素）
 node scripts/lap-test.mjs demo               # 遊戲內示範駕駛

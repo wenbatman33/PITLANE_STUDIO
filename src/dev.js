@@ -543,6 +543,7 @@ export function initDev(api) {
     handbrakeGrip: [0.05, 1.5, 0.01, '手煞車滑動摩擦'],
     spinBase: [0, 12, 0.1, '空轉起始滑速'],
     spinGain: [0, 60, 0.5, '空轉增益'],
+    spinRise: [2, 80, 1, '空轉上升速度'],
     spinBlend: [0.3, 8, 0.1, '空轉→滑行過渡'],
     slipRefSpeed: [0.5, 6, 0.1, '低速側滑參考速度'],
     maxSteerDeg: [5, 45, 0.5, '最大打角°'],

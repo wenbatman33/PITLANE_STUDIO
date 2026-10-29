@@ -21,7 +21,9 @@ export const DRIVER_PROFILES = {
   human: { reaction: 0.2, minHold: 0.25, lookBase: 12, lookGain: 0.35, steerOn: 2 * DEG, pwm: true, period: 0.15, minTap: 0.06, pwmGain: 1.5 },
   // person：照教學玩的真人 —— 方向鍵只有「按住／放開」：路線在左邊就按住 A，回到正前方就放開（有遲滯）
   // 不知道目標速度：紅線按住煞車、離開紅線放開；其他時候按住 W
-  person: { reaction: 0.25, anticipate: 0.5, minHold: 0.1, lookBase: 10, lookGain: 0.4, steerOn: 1.5 * DEG, steerOff: 0.4 * DEG, relay: true },
+  //   判斷依據是「前方路線點在車頭左右偏幾度」（眼睛看到的角度），不是演算法算出的轉向角
+  //   lead：看到車頭已經在轉回來，會提早放開（預判幾秒後的偏角；彎道本身的轉動不算）
+  person: { reaction: 0.25, anticipate: 0.5, minHold: 0.1, lookBase: 10, lookGain: 0.4, steerOn: 1.5 * DEG, steerOff: 0.4 * DEG, relay: true, bearing: true, lead: 0.35 },
 };
 
 // 建議路線與每一點的建議速度
@@ -243,7 +245,7 @@ export function createDriver(guide, P, profile = 'bot', brakeMode = 'self', over
 
   function control(car, dt = 1 / 60) {
     clock += dt;
-    history.push({ t: clock, x: car.x, z: car.z, yaw: car.yaw, speed: car.speed, vx: car.vx, vz: car.vz, r: car.r });
+    history.push({ t: clock, x: car.x, z: car.z, yaw: car.yaw, speed: car.speed, vx: car.vx, vz: car.vz, r: car.r, spin: car.spinVel || 0, beta: car.beta || 0 });
     while (history.length > 2 && history[1].t <= clock - D.reaction) history.shift();
     const h = history[0];
     // 真人看到的是 reaction 秒前的畫面，但會依當時的移動與轉向趨勢預判現在的位置
@@ -276,10 +278,18 @@ export function createDriver(guide, P, profile = 'bot', brakeMode = 'self', over
     }
     if (D.relay) {
       // 按住／放開：偏離超過 steerOn 才按，回到 steerOff 以內（或已經轉過頭）就放開；反向偏太多直接換邊
+      let e = D.bearing ? Math.atan2(left, fwd) : delta;
+      if (D.lead) {
+        // 路線本身的轉動率（左轉為正）：前後 10 點切線的夾角 ÷ 20m × 車速
+        const a = guide.tan[ri];
+        const b = guide.tan[(ri + 10) % n];
+        const rPath = (-(a.x * b.z - a.z * b.x) / 20) * v;
+        e -= ((h.r || 0) - rPath) * D.lead;
+      }
       const cur = keys.steer;
-      if (cur === 0) wantSteer = delta > D.steerOn ? 1 : delta < -D.steerOn ? -1 : 0;
-      else if (cur * delta < -D.steerOn) wantSteer = -cur;
-      else wantSteer = cur * delta < D.steerOff ? 0 : cur;
+      if (cur === 0) wantSteer = e > D.steerOn ? 1 : e < -D.steerOn ? -1 : 0;
+      else if (cur * e < -D.steerOn) wantSteer = -cur;
+      else wantSteer = cur * e < D.steerOff ? 0 : cur;
     }
     // 測試用：模擬不熟練的玩家，有一定機率亂按方向鍵
     if (D.randomSteer && Math.random() < D.randomSteer) wantSteer = Math.random() < 0.5 ? -1 : 1;
@@ -295,6 +305,8 @@ export function createDriver(guide, P, profile = 'bot', brakeMode = 'self', over
       const z = guideColor(guide, ri, v);
       wantBrake = z === 'brake' ? 1 : 0;
       wantThrottle = wantBrake || (D.coastYellow && z === 'corner') ? 0 : 1;
+      // 沒有循跡控制時：看到（反應延遲後）後輪空轉或車尾滑出，就先放油
+      if (!P.tractionControl && (h.spin > 1.5 || Math.abs(h.beta) > 0.07)) wantThrottle = 0;
     } else if (brakeMode === 'zone') {
       // 真人只看地上路線：紅色就踩煞車，其他時候踩油門
       wantBrake = guide.zone[ri] === 'brake' && v > target - 3 ? 1 : 0;

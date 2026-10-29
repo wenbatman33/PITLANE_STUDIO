@@ -61,6 +61,11 @@ export function createGuideLine(scene, guide) {
   return {
     mesh,
     setVisible: (v) => (mesh.visible = v),
+    dispose() {
+      scene.remove(mesh);
+      geo.dispose();
+      mat.dispose();
+    },
     setOpacity: (o) => (mat.opacity = o),
     // 依目前車速（m/s）重新上色；速度變化不大時略過
     update(v) {

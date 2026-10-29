@@ -196,6 +196,11 @@ export class UI {
     $('.bar-reset', bar).addEventListener('click', () => this.cb.onReset());
     $('.bar-mute', bar).addEventListener('click', () => this.cb.onMute());
     $('.bar-demo', bar).addEventListener('click', () => this.cb.onDemo?.());
+    $('.bar-line', bar).addEventListener('click', () => this.cb.onLine?.());
+  }
+
+  setLineLabel(style) {
+    $('.bar-line .txt', this.elements.driveBar).textContent = style === 'best' ? '路線：最佳' : '路線：安全';
   }
 
   setMuteLabel(muted) {
