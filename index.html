@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#eef0f2" />
+    <title>PITLANE STUDIO</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="mode-loading">
+    <canvas id="gl"></canvas>
+    <div id="hotspots"></div>
+
+    <div id="ui">
+      <!-- 展示間 UI -->
+      <header class="ui-el brand" data-ui="brand" data-mode="showroom">
+        <div class="brand-mark">PITLANE<span>/</span>STUDIO</div>
+        <div class="brand-sub">F1 互動展示間 · 自由駕駛</div>
+      </header>
+
+      <div class="ui-el hint" data-ui="showroomHint" data-mode="showroom">
+        拖曳旋轉 · 滾輪縮放 · 點擊 <i class="dot"></i> 看細節
+      </div>
+
+      <button class="ui-el drive-btn" data-ui="driveBtn" data-mode="showroom" type="button">
+        <span class="kicker">READY</span>
+        <span class="label">開始駕駛</span>
+        <span class="key">Enter</span>
+      </button>
+
+      <div class="ui-el livery" data-ui="liveryBar" data-mode="showroom">
+        <div class="livery-title">塗裝</div>
+        <div class="swatches"></div>
+      </div>
+
+      <aside class="ui-el info" data-ui="infoPanel" data-mode="showroom">
+        <div class="info-head">
+          <span class="info-index">01 / 07</span>
+          <button class="info-close" type="button" aria-label="回到總覽">總覽 ✕</button>
+        </div>
+        <div class="info-en">FRONT WING</div>
+        <h2 class="info-title">前翼</h2>
+        <p class="info-desc"></p>
+        <ul class="info-specs"></ul>
+        <button class="info-action" type="button"></button>
+        <div class="info-nav">
+          <button class="info-prev" type="button" aria-label="上一個">‹</button>
+          <button class="info-next" type="button" aria-label="下一個">›</button>
+        </div>
+      </aside>
+
+      <a class="ui-el credit" data-ui="credit" data-mode="showroom" target="_blank" rel="noopener" hidden></a>
+
+      <!-- 駕駛 HUD -->
+      <div class="ui-el shift" data-ui="shiftLights" data-mode="drive"></div>
+
+      <div class="ui-el drift" data-ui="driftMeter" data-mode="drive">
+        <div class="drift-live"><span class="drift-label">DRIFT</span><b class="drift-points">0</b><span class="drift-mult">×1</span></div>
+        <div class="drift-total">總分 <b class="drift-sum">0</b> · 最佳 <b class="drift-best">0</b></div>
+        <div class="drift-pop"></div>
+      </div>
+
+      <div class="ui-el speedo" data-ui="speedo" data-mode="drive">
+        <div class="gear">N</div>
+        <div class="speed"><b>0</b><small>km/h</small></div>
+        <div class="rpm"><i></i></div>
+      </div>
+
+      <div class="ui-el drive-hint" data-ui="driveHint" data-mode="drive">
+        <div><kbd>W</kbd><kbd>↑</kbd> 油門</div>
+        <div><kbd>S</kbd><kbd>↓</kbd> 煞車／倒車</div>
+        <div><kbd>A</kbd><kbd>D</kbd> 轉向</div>
+        <div><kbd>Space</kbd> 手煞車甩尾</div>
+        <div><kbd>C</kbd> 切換鏡頭 <kbd>R</kbd> 重置</div>
+        <div><kbd>Esc</kbd> 回展示間</div>
+      </div>
+
+      <div class="ui-el drive-bar" data-ui="driveBar" data-mode="drive">
+        <button class="bar-btn bar-home" type="button" title="回展示間 (Esc)"><span class="ico">⟵</span><span class="txt">展示間</span></button>
+        <button class="bar-btn bar-cam" type="button" title="切換鏡頭 (C)"><span class="ico">◉</span><span class="txt">鏡頭</span></button>
+        <button class="bar-btn bar-reset" type="button" title="重置 (R)"><span class="ico">↺</span><span class="txt">重置</span></button>
+        <button class="bar-btn bar-mute" type="button" title="靜音 (M)"><span class="ico">♪</span><span class="txt">音效 開</span></button>
+      </div>
+
+      <!-- 觸控操作 -->
+      <div class="ui-el touch touch-steer" data-ui="touchSteer" data-mode="drive">
+        <div class="steer-track"><div class="steer-knob"></div></div>
+        <div class="touch-label">左右滑動轉向</div>
+      </div>
+      <button class="ui-el touch pedal pedal-gas" data-ui="touchGas" data-mode="drive" type="button">油門</button>
+      <button class="ui-el touch pedal pedal-brake" data-ui="touchBrake" data-mode="drive" type="button">煞車</button>
+      <button class="ui-el touch pedal pedal-drift" data-ui="touchDrift" data-mode="drive" type="button">甩尾</button>
+    </div>
+
+    <div id="fade"></div>
+    <div id="loader">
+      <div class="loader-mark">PITLANE<span>/</span>STUDIO</div>
+      <div class="loader-bar"><i></i></div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
