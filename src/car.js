@@ -530,6 +530,7 @@ export function buildCar() {
   }
   let external = null;
   let modelHelmet = null;
+  let driverHide = null;
   applyColors();
 
   // 收集可被射線命中的網格（熱點遮擋判斷與 DEV 拖曳用）
@@ -554,8 +555,9 @@ export function buildCar() {
     const accF = phys ? phys.accF : 0;
     const accL = phys ? phys.accL : 0;
     const spd = phys ? phys.speed : 0;
-    anim.pitch = lerp(anim.pitch, clamp(-accF * 0.0022, -0.035, 0.035), damp(8, dt));
-    anim.roll = lerp(anim.roll, clamp(accL * 0.0016, -0.03, 0.03), damp(8, dt));
+    // F1 懸吊很硬：俯仰、側傾都要小且慢，否則換檔時會一直點頭
+    anim.pitch = lerp(anim.pitch, clamp(-accF * 0.0008, -0.012, 0.012), damp(2.5, dt));
+    anim.roll = lerp(anim.roll, clamp(accL * 0.0007, -0.012, 0.012), damp(3, dt));
     anim.heave = lerp(anim.heave, -Math.min(spd * spd * 0.0000045, 0.02), damp(6, dt));
     body.rotation.x = anim.pitch;
     body.rotation.z = anim.roll;
@@ -587,6 +589,8 @@ export function buildCar() {
     wheels.length = 0;
     body.add(loaded.body);
     if (loaded.drs) body.add(loaded.drs);
+    if (loaded.driverHide) body.add(loaded.driverHide);
+    driverHide = loaded.driverHide || null;
     // 外部模型沒有車手：沿用程式建模的安全帽
     // 一律建立，顯示與否由 DEV 開關即時控制
     modelHelmet = new THREE.Group();
@@ -625,6 +629,10 @@ export function buildCar() {
     },
     setDRS(open) {
       anim.drsTarget = open ? 1 : 0;
+    },
+    // 車手視角：隱藏眼睛正前方的 Halo 中柱
+    setDriverView(on) {
+      if (driverHide) driverHide.visible = !on;
     },
     get drsOpen() {
       return anim.drsTarget > 0.5;

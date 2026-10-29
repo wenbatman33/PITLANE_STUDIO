@@ -78,3 +78,57 @@ export const LIVERIES = [
   { name: '午夜黑', body: '#1a1c21', accent: '#2c3038', stripe: '#ff4b2b', helmet: '#ff4b2b' },
   { name: '珍珠白', body: '#f1f1ee', accent: '#1b1d22', stripe: '#e10600', helmet: '#1f4fd8' },
 ];
+
+// 難度：新手（路線＋自動煞車＋轉向輔助）、標準（路線＋自己煞車）、專家（全部關閉）
+export const LEVELS = {
+  rookie: {
+    name: '新手',
+    desc: '地上有路線、自動煞車、自動沿路線轉向。按住 W 就能跑完一圈。',
+    line: true,
+    brakeAssist: true,
+    steerAssist: true,
+    tc: true,
+    abs: true,
+    esc: 1,
+    keySteerAssist: true,
+    tutorial: [
+      ['W', '一路按住 W 踩油門就好'],
+      ['路線', '地上的線：綠色＝加速、黃色＝彎中、紅色＝遊戲會自動幫你煞車'],
+      ['A D', '車子會自己沿路線轉彎；想往左或右偏，就按 A 或 D'],
+      ['P', '想看怎麼開？按 P 看示範駕駛'],
+    ],
+  },
+  standard: {
+    name: '標準',
+    desc: '地上路線依你的車速變色，紅色就煞車；方向自己轉，循跡穩定輔助會幫你修正一半。',
+    line: true,
+    brakeAssist: false,
+    steerAssist: false,
+    lineKeep: 0.5, // 循跡穩定輔助強度（玩家仍需自己轉向，不轉會出界）
+    tc: true,
+    abs: true,
+    esc: 1,
+    keySteerAssist: true,
+    tutorial: [
+      ['W', '線是綠色就按住 W 全油門；變黃色＝快到極限，可以放開 W'],
+      ['空白鍵', '車子底下的線變紅色＝按住空白鍵煞車，不紅了就放開（紅線會依你的車速提早出現）'],
+      ['A D', '路線往哪邊彎就按住哪邊，車頭對準路線就放開；不用連點'],
+      ['P', '不知道煞車點？按 P 看示範駕駛'],
+    ],
+  },
+  expert: {
+    name: '專家',
+    desc: '沒有路線、沒有任何輔助，ABS／循跡控制／車身穩定全關。',
+    line: false,
+    brakeAssist: false,
+    steerAssist: false,
+    tc: false,
+    abs: false,
+    esc: 0,
+    keySteerAssist: false,
+    tutorial: [
+      ['!', '所有輔助已關閉：煞車會鎖死、出彎油門太大會甩尾'],
+      ['看板', '彎前的 150／100／50 看板是煞車參考點'],
+    ],
+  },
+};

@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { CONFIG, LAYOUT_PC, LAYOUT_MOBILE } from './config.js';
 import { HOTSPOT_ORDER, HOTSPOT_TEXT } from './content.js';
 import { EASES } from './util.js';
-import { placeElement } from './ui.js';
+import { placeElement, uiScale } from './ui.js';
 import { diff, saveOverrides, clearOverrides, snapshot } from './overrides.js';
 
 const ANCHORS = ['tl', 't', 'tr', 'l', 'c', 'r', 'bl', 'b', 'br'];
@@ -23,8 +23,18 @@ const UI_NAMES = {
   touchSteer: '觸控方向',
   touchGas: '觸控油門',
   touchBrake: '觸控煞車',
-  touchDrift: '觸控甩尾',
   credit: '模型作者標示',
+  lapTimer: '圈速計時',
+  minimap: '小地圖',
+  trackWarning: '賽道警告',
+  keyViz: '示範按鍵顯示',
+  difficulty: '難度選擇',
+  trackPicker: '賽道選單',
+  sessionPicker: '練習／比賽切換',
+  raceTower: '比賽名次表',
+  startLights: '起跑紅燈',
+  raceResult: '比賽成績',
+  tutorial: '教學卡',
 };
 
 const round = (v, d = 3) => Math.round(v * 10 ** d) / 10 ** d;
@@ -121,6 +131,8 @@ export function initDev(api) {
     handbrake: () => runAutopilot('handbrake'),
     reset: () => actions.resetDrive(),
     cam: () => actions.cycleCamera(),
+    raceRestart: () => actions.restartRace(),
+    raceResult: () => actions.raceResult(),
     popWin: () => actions.pop('+2480'),
     popFail: () => actions.pop('SPIN！失去分數', true),
   };
@@ -136,6 +148,8 @@ export function initDev(api) {
   fState.add(stateActions, 'handbrake').name('自動手煞車迴轉（駕駛中）');
   fState.add(stateActions, 'reset').name('重置賽車');
   fState.add(stateActions, 'cam').name('切換駕駛鏡頭');
+  fState.add(stateActions, 'raceRestart').name('對手比賽：重新起跑（比賽中）');
+  fState.add(stateActions, 'raceResult').name('對手比賽：顯示成績卡（比賽中）');
   fState.add(stateActions, 'popWin').name('顯示得分彈出');
   fState.add(stateActions, 'popFail').name('顯示失敗彈出');
 
@@ -237,8 +251,10 @@ export function initDev(api) {
     const { H, V } = anchorAxes(cfg.anchor);
     const dx = e.clientX - uiDrag.sx;
     const dy = e.clientY - uiDrag.sy;
-    cfg.x = Math.round(uiDrag.x0 + (H === 'r' ? -dx : dx));
-    cfg.y = Math.round(uiDrag.y0 + (V === 'b' ? -dy : dy));
+    // 拖曳距離換算回未縮放的設計座標
+    const k = uiScale();
+    cfg.x = Math.round(uiDrag.x0 + (H === 'r' ? -dx : dx) / k);
+    cfg.y = Math.round(uiDrag.y0 + (V === 'b' ? -dy : dy) / k);
     placeElement(el, cfg);
   });
   window.addEventListener('pointerup', () => {
@@ -374,10 +390,15 @@ export function initDev(api) {
   fCam.add(C, 'chaseSlipFollow', 0, 1, 0.01).name('甩尾時跟隨速度方向');
   fCam.add(C, 'chaseFov', 30, 100, 0.5).name('基本 FOV');
   fCam.add(C, 'chaseFovSpeedGain', 0, 40, 0.5).name('高速 FOV 增量');
+  fCam.add(C, 'speedShake', 0, 0.05, 0.001).name('高速震動（0 = 關）');
+  fCam.add(C, 'skidShake', 0, 0.08, 0.001).name('打滑震動（0 = 關）');
+  fCam.add(C, 'curbShake', 0, 0.05, 0.001).name('路緣石震動（0 = 關）');
   fCam.add(C, 'farDistScale', 1, 4, 0.05).name('遠景距離倍率');
   fCam.add(C, 'farHeightScale', 1, 5, 0.05).name('遠景高度倍率');
-  fCam.add(C, 'tcamHeight', 0.6, 2, 0.01).name('車頂鏡頭高度');
-  fCam.add(C, 'tcamForward', -1.5, 1.5, 0.01).name('車頂鏡頭前後');
+  fCam.add(C, 'driverCamHeight', 0.5, 1.5, 0.01).name('車手視角：眼睛高度');
+  fCam.add(C, 'driverCamForward', -1.5, 1.5, 0.01).name('車手視角：前後');
+  fCam.add(C, 'driverCamLookHeight', -1, 2, 0.01).name('車手視角：看的高度');
+  fCam.add(C, 'driverCamFov', 40, 100, 1).name('車手視角：視角 FOV');
   fCam.add(C, 'heliHeight', 5, 80, 0.5).name('空拍高度');
 
   // ================= 🏎 外觀 =================
@@ -435,6 +456,68 @@ export function initDev(api) {
     )
     .name('↻ 套用並重新載入');
 
+  // ================= 🏎️ 對手比賽 =================
+  {
+    const R = CONFIG.race;
+    const fRace = gui.addFolder('🏎️ 對手比賽').close();
+    fRace.add(R, 'laps', 1, 20, 1).name('圈數（下一場生效）');
+    fRace.add(R, 'playerSlot', 0, R.opponents.length, 1).name('玩家發車格（重載生效）');
+    fRace.add(R, 'followGap', 4, 30, 0.5).name('AI 跟車距離 m');
+    fRace.add(R, 'sideGap', 2, 4, 0.05).name('AI 並排側向距離 m');
+    fRace.add(R, 'restitution', 0, 1, 0.01).name('碰撞反彈');
+    fRace.add(R, 'contactFriction', 0, 1, 0.01).name('擦撞摩擦');
+    fRace.add(R, 'spinFactor', 0, 2, 0.05).name('撞擊轉動倍率');
+    fRace.add(R, 'hitShake', 0, 0.2, 0.005).name('被撞鏡頭衝擊（0 = 關）');
+    fRace.add(R, 'lightsInterval', 0.3, 2, 0.05).name('紅燈間隔 s');
+  }
+
+  // ================= 🏁 賽道 =================
+  if (api.track) {
+    const T = CONFIG.track;
+    const tr = api.track;
+    const fTrack = gui.addFolder(`🏁 賽道（${tr.def.label}）`).close();
+    const rebuild = () => tr.rebuild();
+    fTrack.add(T, 'widthScale', 0.6, 2, 0.01).name('寬度倍率').onFinishChange(rebuild);
+    fTrack.add(CONFIG.assist, 'guideOpacity', 0, 1, 0.01).name('建議路線透明度');
+    fTrack.addColor(T, 'asphaltColor').name('柏油顏色').onChange((v) => tr.materials.asphalt.color.set(v));
+    fTrack.add(T, 'edgeLineWidth', 0, 1, 0.01).name('白邊線寬').onFinishChange(rebuild);
+    fTrack.add(T, 'curbRadius', 30, 400, 1).name('路緣石：彎道半徑門檻').onFinishChange(rebuild);
+    fTrack.add(T, 'curbExtend', 0, 40, 1).name('路緣石：前後延伸').onFinishChange(rebuild);
+    fTrack.add(T, 'curbWidth', 0.3, 3, 0.05).name('路緣石寬').onFinishChange(rebuild);
+    fTrack.add(T, 'curbStripe', 0.5, 6, 0.1).name('紅白一組長度').onFinishChange(rebuild);
+    fTrack.add(T, 'offGrip', 0.1, 1, 0.01).name('出界抓地倍率');
+    fTrack.add(T, 'offDrag', 0, 600, 5).name('出界阻力');
+    fTrack.add(T, 'offMargin', -1, 3, 0.05).name('出界判定寬容');
+    fTrack.add(T, 'gridOffset', 0, 60, 0.5).name('發車位距起跑線（需重載）');
+    fTrack.add(T, 'gridLateral', -6, 6, 0.1).name('發車位左右（需重載）');
+    const fJump = fTrack.addFolder('傳送到彎道前（駕駛中）');
+    const L = tr.length;
+    const jumps =
+      tr.id === 'monza'
+        ? [
+            ['起跑線前', L - 250],
+            ['T1 Rettifilo 減速彎', 919],
+            ['Curva Grande', 1250],
+            ['Roggia 減速彎', 2133],
+            ['Lesmo 1', 2503],
+            ['Lesmo 2', 2858],
+            ['Ascari 減速彎', 3942],
+            ['Parabolica', 5126],
+          ]
+        : [['起跑線前', L - 250], ...tr.brakeZones.map((s, k) => [`重煞彎 ${k + 1}（${Math.round(s)} m）`, s])];
+    jumps.forEach(([name, s]) => fJump.add({ go: () => actions.teleport(s - (name === '起跑線前' ? 0 : 220)) }, 'go').name(name));
+    fTrack
+      .add(
+        {
+          clear: () => {
+            if (confirm('清除 Monza 的最佳圈紀錄？')) api.timer.clearBest();
+          },
+        },
+        'clear',
+      )
+      .name('清除最佳圈紀錄');
+  }
+
   // ================= ⚙️ 物理 =================
   const fPhys = gui.addFolder('⚙️ 駕駛物理').close();
   const P = CONFIG.physics;
@@ -447,6 +530,9 @@ export function initDev(api) {
     reverseForce: [500, 9000, 100, '倒車力'],
     maxReverseSpeed: [2, 25, 0.5, '倒車極速 m/s'],
     brakeForce: [4000, 60000, 500, '煞車力'],
+    brakeBias: [0.3, 0.8, 0.01, '煞車前軸比例'],
+    brakeRampUp: [1, 30, 0.5, '鍵盤煞車踩下速度'],
+    brakeRampDown: [1, 30, 0.5, '鍵盤煞車放開速度'],
     dragCoef: [0.1, 2.5, 0.01, '風阻'],
     rollResist: [0, 200, 1, '滾動阻力'],
     downforce: [0, 8, 0.05, '下壓力係數'],
@@ -461,8 +547,11 @@ export function initDev(api) {
     slipRefSpeed: [0.5, 6, 0.1, '低速側滑參考速度'],
     maxSteerDeg: [5, 45, 0.5, '最大打角°'],
     highSpeedSteerDeg: [1, 25, 0.5, '高速打角°'],
-    steerRate: [0.5, 15, 0.1, '轉向速度'],
-    steerReturn: [0.5, 20, 0.1, '回正速度'],
+    steerRate: [0.3, 10, 0.05, '低速打角速度'],
+    steerRateHigh: [0.2, 6, 0.05, '高速打角速度'],
+    steerReturn: [0.5, 20, 0.1, '低速回正速度'],
+    steerReturnHigh: [0.5, 30, 0.1, '高速回正速度'],
+    steerCurve: [1, 3, 0.05, '轉向曲線（越大小角度越細）'],
     inertiaScale: [0.15, 2, 0.01, '轉動慣量倍率'],
     yawDamping: [0, 6, 0.05, '穩定輔助'],
     lowSpeedBlendStart: [0, 6, 0.1, '低速模型起點'],
@@ -471,7 +560,22 @@ export function initDev(api) {
     autoShiftDown: [4500, 11000, 50, '自動降檔 rpm'],
   };
   for (const [k, [min, max, step, name]] of Object.entries(physRanges)) fPhys.add(P, k, min, max, step).name(name);
-  fPhys.add(P, 'tractionControl').name('循跡控制（不空轉）');
+  fPhys.add(P, 'steerAssist').name('輔助：轉向（按住＝最佳打角）');
+  fPhys.add(P, 'steerAssistGrip', 0.3, 1.2, 0.01).name('按住方向鍵抓地比例（低速）');
+  fPhys.add(P, 'steerAssistGripHigh', 0.3, 1.2, 0.01).name('按住方向鍵抓地比例（高速）');
+  fPhys.add(P, 'steerAssistSlip', 0, 2, 0.01).name('轉向輔助滑移角倍率');
+  fPhys.add(P, 'steerAssistMaxG', 1, 8, 0.1).name('轉向輔助最多拉幾 G');
+  fPhys.add(P, 'steerJerk', 0, 200, 1).name('鍵盤轉向靈敏度（0 = 舊式）');
+  fPhys.add(P, 'steerRateMinDeg', 0.1, 5, 0.1).name('鍵盤打角速度下限°/s');
+  fPhys.add(P, 'steerRateMaxDeg', 10, 200, 1).name('鍵盤打角速度上限°/s');
+  fPhys.add(P, 'steerReturnMul', 1, 6, 0.1).name('放開回正倍率');
+  fPhys.add(P, 'tractionControl').name('輔助：循跡控制（不空轉）');
+  fPhys.add(P, 'abs').name('輔助：ABS（不鎖死）');
+  fPhys.add(P, 'cornerBrakeMin', 0, 1, 0.01).name('輔助：彎道 ABS 至少保留煞車');
+  fPhys.add(P, 'steerGripRecover', 0.5, 20, 0.1).name('放開煞車後轉向上限恢復速度');
+  fPhys.add(P, 'esc', 0, 4, 0.05).name('輔助：車身穩定強度（0 = 關）');
+  fPhys.add(P, 'escThresholdDeg', 2, 30, 0.5).name('輔助：滑出幾度才介入');
+  fPhys.add(P, 'aeroFront', 0.3, 0.6, 0.01).name('下壓力前軸分配');
 
   // ================= 💡 燈光 =================
   const fLight = gui.addFolder('💡 燈光與場景').close();
@@ -508,6 +612,7 @@ export function initDev(api) {
   fAudio.add(A, 'master', 0, 1, 0.01).name('總音量').onChange(() => audio.applyVolume());
   fAudio.add(A, 'engine', 0, 1.5, 0.01).name('引擎');
   fAudio.add(A, 'screech', 0, 1.5, 0.01).name('輪胎尖叫');
+  fAudio.add(A, 'curb', 0, 1.5, 0.01).name('路緣石噠噠聲');
   fAudio.add(A, 'turbo', 0, 1.5, 0.01).name('渦輪');
 
   // ================= ⏱ 動畫 =================

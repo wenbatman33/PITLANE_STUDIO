@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#eef0f2" />
     <title>PITLANE STUDIO</title>
+    <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -13,6 +14,7 @@
   <body class="mode-loading">
     <canvas id="gl"></canvas>
     <div id="hotspots"></div>
+    <div id="opp-tags"></div>
 
     <div id="ui">
       <!-- 展示間 UI -->
@@ -30,6 +32,28 @@
         <span class="label">開始駕駛</span>
         <span class="key">Enter</span>
       </button>
+
+      <div class="ui-el difficulty session-picker" data-ui="sessionPicker" data-mode="showroom">
+        <div class="diff-opts">
+          <button type="button" data-session="practice">計時練習</button>
+          <button type="button" data-session="race">對手比賽</button>
+        </div>
+        <div class="diff-desc"></div>
+      </div>
+
+      <div class="ui-el difficulty track-picker" data-ui="trackPicker" data-mode="showroom">
+        <div class="diff-opts"></div>
+        <div class="diff-desc"></div>
+      </div>
+
+      <div class="ui-el difficulty" data-ui="difficulty" data-mode="showroom">
+        <div class="diff-opts">
+          <button type="button" data-level="rookie">新手</button>
+          <button type="button" data-level="standard">標準</button>
+          <button type="button" data-level="expert">專家</button>
+        </div>
+        <div class="diff-desc"></div>
+      </div>
 
       <div class="ui-el livery" data-ui="liveryBar" data-mode="showroom">
         <div class="livery-title">塗裝</div>
@@ -63,6 +87,58 @@
         <div class="drift-pop"></div>
       </div>
 
+      <div class="ui-el laptimer" data-ui="lapTimer" data-mode="drive">
+        <div class="lt-head"><span class="lt-lap">暖胎圈</span><span class="lt-invalid">該圈不計</span></div>
+        <div class="lt-time">0:00.000</div>
+        <div class="lt-delta"></div>
+        <div class="lt-sectors"><i>S1</i><i>S2</i><i>S3</i></div>
+        <div class="lt-rows">
+          <div><span>上一圈</span><b class="lt-last">--:--.---</b></div>
+          <div><span>最佳圈</span><b class="lt-best">--:--.---</b></div>
+        </div>
+      </div>
+
+      <div class="ui-el minimap" data-ui="minimap" data-mode="drive">
+        <canvas></canvas>
+        <div class="mm-name"></div>
+      </div>
+
+      <div class="ui-el track-warn" data-ui="trackWarning" data-mode="drive"></div>
+
+      <!-- 對手比賽：名次表、起跑紅燈、終點成績 -->
+      <div class="ui-el race-tower" data-ui="raceTower" data-mode="drive">
+        <div class="rt-head"><b class="rt-pos">P–</b><span class="rt-lap">第 1 / 3 圈</span></div>
+        <ol class="rt-rows"></ol>
+      </div>
+      <div class="ui-el start-lights" data-ui="startLights" data-mode="drive">
+        <i></i><i></i><i></i><i></i><i></i>
+      </div>
+      <div class="ui-el race-result" data-ui="raceResult" data-mode="drive">
+        <div class="rr-title">比賽結束</div>
+        <div class="rr-sub"></div>
+        <table class="rr-table">
+          <thead><tr><th>名次</th><th>車手</th><th>完賽時間</th><th>最快圈</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="rr-foot"><kbd>Enter</kbd> 再比一次　<kbd>Esc</kbd> 回展示間</div>
+      </div>
+
+      <div class="ui-el tutorial" data-ui="tutorial" data-mode="drive">
+        <div class="tut-title">怎麼開</div>
+        <ol class="tut-steps"></ol>
+        <div class="tut-foot">按任意鍵開始 · 隨時按 H 再看一次</div>
+      </div>
+
+      <div class="ui-el keyviz" data-ui="keyViz" data-mode="drive">
+        <div class="kv-title">示範駕駛中 · 按任一方向鍵接手</div>
+        <div class="kv-keys">
+          <i class="kv-w">W</i>
+          <i class="kv-a">A</i><i class="kv-d">D</i>
+          <i class="kv-s">空白鍵</i>
+        </div>
+        <div class="kv-info"><span>目標</span><b class="kv-target">0</b><span>km/h</span></div>
+      </div>
+
       <div class="ui-el speedo" data-ui="speedo" data-mode="drive">
         <div class="gear">N</div>
         <div class="speed"><b>0</b><small>km/h</small></div>
@@ -71,10 +147,12 @@
 
       <div class="ui-el drive-hint" data-ui="driveHint" data-mode="drive">
         <div><kbd>W</kbd><kbd>↑</kbd> 油門</div>
-        <div><kbd>S</kbd><kbd>↓</kbd> 煞車／倒車</div>
+        <div><kbd>空白鍵</kbd><kbd>↓</kbd> 煞車</div>
+        <div><kbd>X</kbd> 倒車（停住時）</div>
         <div><kbd>A</kbd><kbd>D</kbd> 轉向</div>
-        <div><kbd>Space</kbd> 手煞車甩尾</div>
         <div><kbd>C</kbd> 切換鏡頭 <kbd>R</kbd> 重置</div>
+        <div><kbd>P</kbd> 示範駕駛（看怎麼開）</div>
+        <div><kbd>H</kbd> 再看一次教學</div>
         <div><kbd>Esc</kbd> 回展示間</div>
       </div>
 
@@ -82,6 +160,7 @@
         <button class="bar-btn bar-home" type="button" title="回展示間 (Esc)"><span class="ico">⟵</span><span class="txt">展示間</span></button>
         <button class="bar-btn bar-cam" type="button" title="切換鏡頭 (C)"><span class="ico">◉</span><span class="txt">鏡頭</span></button>
         <button class="bar-btn bar-reset" type="button" title="重置 (R)"><span class="ico">↺</span><span class="txt">重置</span></button>
+        <button class="bar-btn bar-demo" type="button" title="示範駕駛 (P)"><span class="ico">▶</span><span class="txt">示範</span></button>
         <button class="bar-btn bar-mute" type="button" title="靜音 (M)"><span class="ico">♪</span><span class="txt">音效 開</span></button>
       </div>
 
@@ -92,7 +171,6 @@
       </div>
       <button class="ui-el touch pedal pedal-gas" data-ui="touchGas" data-mode="drive" type="button">油門</button>
       <button class="ui-el touch pedal pedal-brake" data-ui="touchBrake" data-mode="drive" type="button">煞車</button>
-      <button class="ui-el touch pedal pedal-drift" data-ui="touchDrift" data-mode="drive" type="button">甩尾</button>
     </div>
 
     <div id="fade"></div>

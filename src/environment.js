@@ -77,15 +77,19 @@ export function createWorld(renderer) {
   applyLighting();
 
   const sunDir = new THREE.Vector3();
+  const snapped = new THREE.Vector3();
   function update(focus) {
     ground.position.x = Math.round(focus.x / TILE) * TILE;
     ground.position.z = Math.round(focus.z / TILE) * TILE;
+    // 陰影相機對齊陰影貼圖的像素格線，車子移動時影子邊緣才不會閃爍
+    const texel = (sc.right - sc.left) / sun.shadow.mapSize.x;
+    snapped.set(Math.round(focus.x / texel) * texel, 0, Math.round(focus.z / texel) * texel);
     const l = CONFIG.lighting;
     const az = l.sunAzimuth * DEG;
     const el = l.sunElevation * DEG;
     sunDir.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
-    sun.target.position.copy(focus);
-    sun.position.copy(focus).addScaledVector(sunDir, 40);
+    sun.target.position.copy(snapped);
+    sun.position.copy(snapped).addScaledVector(sunDir, 40);
   }
 
   return { scene, sun, hemi, ground, mark, cones, applyLighting, update };

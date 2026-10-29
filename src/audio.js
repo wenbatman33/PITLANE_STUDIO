@@ -83,6 +83,18 @@ export class EngineAudio {
     this.screechGain = ctx.createGain();
     this.screechGain.gain.value = 0;
     noise.connect(this.screechFilter).connect(this.screechGain).connect(this.master);
+
+    // 路緣石：輪胎壓過一條條凸起的「噠噠噠」— 鋸齒波（頻率＝每秒壓過幾條）＋低通
+    this.rumble = ctx.createOscillator();
+    this.rumble.type = 'sawtooth';
+    this.rumble.frequency.value = 40;
+    this.rumbleFilter = ctx.createBiquadFilter();
+    this.rumbleFilter.type = 'lowpass';
+    this.rumbleFilter.frequency.value = 380;
+    this.rumbleGain = ctx.createGain();
+    this.rumbleGain.gain.value = 0;
+    this.rumble.connect(this.rumbleFilter).connect(this.rumbleGain).connect(this.master);
+    this.rumble.start();
     noise.start();
 
     this.applyVolume();
@@ -104,8 +116,8 @@ export class EngineAudio {
     this.applyVolume();
   }
 
-  // rpm: 實際轉速；throttle 0..1；skid 0..1；dt 秒
-  update(dt, rpm, throttle, skid) {
+  // rpm: 實際轉速；throttle 0..1；skid 0..1；dt 秒；curb：{ amount 0..1, rate 每秒壓過幾條 }
+  update(dt, rpm, throttle, skid, curb = null) {
     if (!this.ctx || !this.running) return;
     const A = CONFIG.audio;
     const t = this.ctx.currentTime;
@@ -119,6 +131,11 @@ export class EngineAudio {
     this.turboGain.gain.setTargetAtTime(A.turbo * 0.05 * throttle * rpmN, t, 0.15);
     this.screechFilter.frequency.setTargetAtTime(950 + skid * 650, t, 0.05);
     this.screechGain.gain.setTargetAtTime(A.screech * clamp(skid, 0, 1) * 0.6, t, 0.06);
+    if (this.rumble) {
+      const amt = curb ? curb.amount : 0;
+      if (curb) this.rumble.frequency.setTargetAtTime(clamp(curb.rate, 8, 160), t, 0.02);
+      this.rumbleGain.gain.setTargetAtTime((A.curb ?? 0.5) * amt * 0.5, t, 0.03);
+    }
 
     // 高轉速收油時的回火爆音
     this.popCooldown -= dt;

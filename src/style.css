@@ -519,6 +519,327 @@ body.dev-drag-hotspots .hotspot {
   }
 }
 
+/* ---------- 賽道模式：圈速、小地圖、警告 ---------- */
+body:not(.track-mode) .ui-el[data-ui='lapTimer'],
+body:not(.track-mode) .ui-el[data-ui='minimap'],
+body:not(.track-mode) .ui-el[data-ui='trackWarning'],
+body.track-mode .ui-el[data-ui='driftMeter'] {
+  display: none;
+}
+.laptimer {
+  min-width: 15em;
+  padding: 0.8em 1em 0.9em;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 0.6em;
+  font-family: var(--font-race);
+}
+.lt-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8em;
+  letter-spacing: 0.18em;
+  color: var(--ink-2);
+}
+.lt-invalid {
+  display: none;
+  padding: 0.1em 0.5em;
+  border-radius: 0.3em;
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: 0.08em;
+}
+.laptimer.invalid .lt-invalid {
+  display: inline-block;
+}
+.lt-time {
+  margin-top: 0.15em;
+  font-size: 2.3em;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.laptimer.invalid .lt-time {
+  color: var(--ink-3);
+}
+.lt-delta {
+  min-height: 1.3em;
+  font-size: 1em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.lt-delta.faster {
+  color: #1aa34a;
+}
+.lt-delta.slower {
+  color: var(--accent);
+}
+.lt-sectors {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.3em;
+  margin-top: 0.4em;
+}
+.lt-sectors i {
+  font-style: normal;
+  text-align: center;
+  font-size: 0.8em;
+  padding: 0.25em 0;
+  border-radius: 0.25em;
+  background: rgba(21, 23, 27, 0.08);
+  color: var(--ink-2);
+}
+.lt-sectors i.purple {
+  background: #8f3ff0;
+  color: #fff;
+}
+.lt-sectors i.green {
+  background: #1aa34a;
+  color: #fff;
+}
+.lt-sectors i.yellow {
+  background: #f0c419;
+  color: #15171b;
+}
+.lt-rows {
+  display: grid;
+  gap: 0.2em;
+  margin-top: 0.5em;
+  font-size: 0.9em;
+}
+.lt-rows div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+}
+.lt-rows span {
+  font-family: var(--font-ui);
+  color: var(--ink-2);
+}
+.lt-rows b {
+  font-variant-numeric: tabular-nums;
+}
+.minimap {
+  width: 12em;
+  padding: 0.6em;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 0.6em;
+}
+.minimap canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+.mm-name {
+  margin-top: 0.3em;
+  text-align: center;
+  font: 600 0.75em var(--font-race);
+  letter-spacing: 0.2em;
+  color: var(--ink-2);
+}
+.track-warn {
+  padding: 0.45em 1.1em;
+  border-radius: 0.4em;
+  background: rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  transition: opacity 0.25s ease;
+}
+.track-warn:empty {
+  opacity: 0 !important;
+}
+.track-warn.info {
+  color: var(--ink);
+}
+
+/* ---------- 難度選擇 ---------- */
+.difficulty {
+  text-align: center;
+}
+.diff-opts {
+  display: inline-flex;
+  padding: 0.25em;
+  gap: 0.25em;
+  border-radius: 0.5em;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 0.3em 1em rgba(0, 0, 0, 0.08);
+}
+.diff-opts button {
+  border: 0;
+  padding: 0.45em 1.2em;
+  border-radius: 0.35em;
+  background: transparent;
+  font-size: 1em;
+  letter-spacing: 0.15em;
+  color: var(--ink-2);
+}
+.diff-opts button.active {
+  background: var(--ink);
+  color: #fff;
+}
+.track-picker .diff-opts {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100vw - 32px);
+}
+.track-picker .diff-opts button {
+  padding: 0.4em 0.9em;
+  letter-spacing: 0.08em;
+}
+.diff-desc {
+  margin-top: 0.45em;
+  font-size: 0.8em;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ---------- 教學卡 ---------- */
+body:not(.tut-open) .ui-el[data-ui='tutorial'] {
+  opacity: 0 !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+.tutorial {
+  width: 26em;
+  max-width: calc(100vw - 32px);
+  padding: 1.2em 1.4em;
+  border-radius: 0.7em;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1em 3em rgba(0, 0, 0, 0.2);
+  border-top: 0.3em solid var(--accent);
+}
+.tut-title {
+  font-size: 1.3em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.tut-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0.9em 0 0;
+  display: grid;
+  gap: 0.7em;
+}
+.tut-steps li {
+  display: grid;
+  grid-template-columns: 4em 1fr;
+  gap: 0.8em;
+  align-items: center;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.tut-steps li b {
+  display: grid;
+  place-items: center;
+  height: 2.2em;
+  border-radius: 0.35em;
+  background: var(--ink);
+  color: #fff;
+  font-family: var(--font-race);
+  font-size: 0.95em;
+  letter-spacing: 0.05em;
+}
+.tut-foot {
+  margin-top: 1em;
+  font-size: 0.8em;
+  color: var(--ink-3);
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+
+/* ---------- 示範駕駛：按鍵顯示 ---------- */
+body:not(.demo) .ui-el[data-ui='keyViz'] {
+  display: none;
+}
+.keyviz {
+  padding: 0.8em 1em;
+  border-radius: 0.6em;
+  background: rgba(21, 23, 27, 0.82);
+  color: #fff;
+  text-align: center;
+  font-family: var(--font-race);
+}
+.kv-title {
+  font-family: var(--font-ui);
+  font-size: 0.8em;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.6em;
+  color: #ffd23f;
+}
+.kv-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 2.6em);
+  grid-template-rows: 2.6em 2.6em 2em;
+  gap: 0.3em;
+  justify-content: center;
+}
+.kv-keys i {
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-weight: 700;
+  border-radius: 0.35em;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.5);
+  transition: background 0.05s linear;
+}
+.kv-keys .kv-w {
+  grid-column: 2;
+}
+.kv-keys .kv-a {
+  grid-column: 1;
+  grid-row: 2;
+}
+.kv-keys .kv-s {
+  grid-column: 1 / 4;
+  grid-row: 3;
+  font-size: 0.85em;
+}
+.kv-keys .kv-d {
+  grid-column: 3;
+  grid-row: 2;
+}
+.kv-keys i.on {
+  color: #15171b;
+  background: #fff;
+  border-color: #fff;
+}
+.kv-keys .kv-w.on {
+  background: #2bff6a;
+  border-color: #2bff6a;
+}
+.kv-keys .kv-s.on {
+  background: #ff3b3b;
+  border-color: #ff3b3b;
+  color: #fff;
+}
+.kv-info {
+  margin-top: 0.6em;
+  font-size: 0.85em;
+  display: flex;
+  gap: 0.4em;
+  justify-content: center;
+  align-items: baseline;
+  color: rgba(255, 255, 255, 0.7);
+}
+.kv-info b {
+  font-size: 1.3em;
+  color: #fff;
+}
+body.demo .bar-demo {
+  background: #ffd23f;
+}
+
 /* ---------- 速度表 ---------- */
 .speedo {
   display: grid;
@@ -851,4 +1172,162 @@ body.dev-drag-ui .ui-el.dev-selected {
 .lil-gui.root {
   z-index: 85 !important;
   max-height: calc(100vh - 16px);
+}
+
+/* ---------- 對手比賽 ---------- */
+/* 名次表、紅燈、成績：只在比賽中顯示 */
+body:not(.race-on) .ui-el[data-ui='raceTower'],
+body:not(.race-lights) .ui-el[data-ui='startLights'],
+body:not(.race-done) .ui-el[data-ui='raceResult'] {
+  opacity: 0 !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+#opp-tags {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  overflow: hidden;
+}
+body:not(.race-on) #opp-tags {
+  display: none;
+}
+.opp-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 0.15em 0.55em;
+  border-radius: 0.35em;
+  font: 600 12px/1.4 'Chakra Petch', 'Noto Sans TC', sans-serif;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: hsl(calc(var(--hue) + 0), 70%, 38%);
+  box-shadow: 0 0.2em 0.6em rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  will-change: transform;
+}
+.race-tower {
+  min-width: 12.5em;
+  padding: 0.6em 0.7em;
+  border-radius: 0.6em;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 0.3em 1em rgba(0, 0, 0, 0.08);
+}
+.rt-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8em;
+  margin-bottom: 0.35em;
+}
+.rt-pos {
+  font: 700 1.9em/1 'Chakra Petch', sans-serif;
+}
+.rt-lap {
+  font-size: 0.8em;
+  color: var(--ink-2);
+  letter-spacing: 0.08em;
+}
+.rt-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rt-rows li {
+  display: grid;
+  grid-template-columns: 1.3em 0.5em 1fr auto;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.18em 0.3em;
+  border-radius: 0.3em;
+  font-size: 0.9em;
+}
+.rt-rows li.me {
+  background: var(--ink);
+  color: #fff;
+}
+.rt-rows li b {
+  font-family: 'Chakra Petch', sans-serif;
+  text-align: right;
+}
+.rt-rows li em {
+  font-style: normal;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+.chip {
+  width: 0.5em;
+  height: 1em;
+  border-radius: 0.15em;
+  background: hsl(var(--hue), 70%, 45%);
+}
+.start-lights {
+  display: flex;
+  gap: 0.6em;
+  padding: 0.7em 0.9em;
+  border-radius: 0.7em;
+  background: #15171b;
+  box-shadow: 0 0.4em 1.4em rgba(0, 0, 0, 0.25);
+}
+.start-lights i {
+  width: 2.4em;
+  height: 2.4em;
+  border-radius: 50%;
+  background: #2b2e35;
+  transition: background 0.05s linear, box-shadow 0.05s linear;
+}
+.start-lights i.on {
+  background: #ff2a1a;
+  box-shadow: 0 0 1em #ff2a1a;
+}
+.race-result {
+  width: 26em;
+  max-width: calc(100vw - 32px);
+  padding: 1.2em 1.4em;
+  border-radius: 0.8em;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0.6em 2em rgba(0, 0, 0, 0.18);
+  text-align: center;
+}
+.rr-title {
+  font: 700 2em/1.1 'Chakra Petch', 'Noto Sans TC', sans-serif;
+  letter-spacing: 0.06em;
+}
+.rr-sub {
+  margin: 0.4em 0 0.8em;
+  font-size: 0.85em;
+  color: var(--ink-2);
+}
+.rr-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.rr-table th {
+  font-weight: 500;
+  font-size: 0.8em;
+  color: var(--ink-2);
+  padding: 0.3em;
+}
+.rr-table td {
+  padding: 0.35em 0.3em;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-family: 'Chakra Petch', 'Noto Sans TC', sans-serif;
+}
+.rr-table tr.me td {
+  font-weight: 700;
+  background: rgba(225, 6, 0, 0.07);
+}
+.rr-table td.fastest {
+  color: #8b2bd9;
+  font-weight: 700;
+}
+.rr-foot {
+  margin-top: 0.9em;
+  font-size: 0.8em;
+  color: var(--ink-2);
 }

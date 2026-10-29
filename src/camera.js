@@ -4,7 +4,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG } from './config.js';
 import { clamp, damp, lerp, smoothstep, EASES, DEG } from './util.js';
 
-export const CHASE_MODES = ['追車', '遠景', '車頂', '空拍'];
+export const CHASE_MODES = ['追車', '遠景', '車手', '空拍'];
+export const DRIVER_CAM = 2; // 車手視角（駕駛艙內、眼睛高度）
 
 const _s1 = new THREE.Spherical();
 const _s2 = new THREE.Spherical();
@@ -89,6 +90,7 @@ export class CameraRig {
 
   startChase() {
     this.mode = 'chase';
+    this.chaseAng = null;
     this.controls.enabled = false;
     this.chasePos.copy(this.camera.position);
     this.lookPos.copy(this.controls.target);
@@ -108,6 +110,12 @@ export class CameraRig {
       const n = Math.hypot(dx, dz) || 1;
       dx /= n;
       dz /= n;
+    }
+    if (this.chaseMode === DRIVER_CAM) {
+      // 車手視角：眼睛位置固定在駕駛艙，看向正前方遠處
+      out.pos = [phys.x + fx * C.driverCamForward, C.driverCamHeight, phys.z + fz * C.driverCamForward];
+      out.look = [phys.x + fx * 40, C.driverCamLookHeight, phys.z + fz * 40];
+      return out;
     }
     let dist = C.chaseDist;
     let height = C.chaseHeight;
@@ -158,43 +166,50 @@ export class CameraRig {
       const fz = Math.cos(phys.yaw);
       const speedT = clamp(phys.speed / 90, 0, 1);
       let fov = C.chaseFov + C.chaseFovSpeedGain * speedT;
-      if (this.chaseMode === 2) {
-        // 車頂鏡頭：剛性固定在進氣口上方
-        const x = phys.x + fx * (C.tcamForward + 0.2);
-        const z = phys.z + fz * (C.tcamForward + 0.2);
-        this.chasePos.set(x, C.tcamHeight, z);
-        this.lookPos.set(phys.x + fx * 25, 0.5, phys.z + fz * 25);
-        fov += 8;
-      } else if (this.chaseMode === 3) {
-        _v.set(phys.x - fx * 6, C.heliHeight, phys.z - fz * 6);
-        this.chasePos.lerp(_v, damp(3, dt));
-        this.lookPos.lerp(_v.set(phys.x + phys.vx * 0.3, 0, phys.z + phys.vz * 0.3), damp(5, dt));
-        fov = 42;
+      if (this.chaseMode === DRIVER_CAM) {
+        // 車手視角：剛性固定在車手眼睛位置（不平滑、不隨車速改變視角）
+        const pose = this.chasePose(phys, _pose);
+        this.chasePos.set(...pose.pos);
+        this.lookPos.set(...pose.look);
+        this.chaseAng = Math.atan2(-fx, -fz);
+        fov = C.driverCamFov;
       } else {
         // 以車為圓心平滑「角度」而不是平滑位置，車子打轉時鏡頭不會切進車身
+        // 鏡頭位置與注視點都固定在車子座標系內（只有方向角會平滑）：
+        // 不在世界座標裡追車，否則車速越快落後越多，加速／換檔／掉幀時畫面會上下晃
         const pose = this.chasePose(phys, _pose);
         const desired = Math.atan2(pose.pos[0] - phys.x, pose.pos[2] - phys.z);
-        const cur = Math.atan2(this.chasePos.x - phys.x, this.chasePos.z - phys.z);
+        const cur = this.chaseAng ?? Math.atan2(this.chasePos.x - phys.x, this.chasePos.z - phys.z);
         let dA = desired - cur;
         dA = Math.atan2(Math.sin(dA), Math.cos(dA));
         const ang = cur + dA * damp(C.chaseStiffness, dt);
-        // 距離不做位置平滑（否則高速時會越拖越遠），只依加減速做輕微伸縮
-        this.distOffset = lerp(this.distOffset || 0, clamp(phys.accF * 0.06, -0.8, 1.0), damp(3, dt));
-        const dist = Math.hypot(pose.pos[0] - phys.x, pose.pos[2] - phys.z) + this.distOffset;
-        this.chasePos.set(
-          phys.x + Math.sin(ang) * dist,
-          lerp(this.chasePos.y, pose.pos[1], damp(C.chaseStiffness, dt)),
-          phys.z + Math.cos(ang) * dist,
-        );
-        this.lookPos.lerp(_v.set(...pose.look), damp(C.chaseStiffness * 1.6, dt));
+        this.chaseAng = ang;
+        const bx = Math.sin(ang);
+        const bz = Math.cos(ang);
+        if (this.chaseMode === 3) {
+          this.chasePos.set(phys.x + bx * 6, C.heliHeight, phys.z + bz * 6);
+          this.lookPos.set(phys.x, 0, phys.z);
+          fov = 42;
+        } else {
+          // 距離固定：不隨加減速伸縮（換檔時會變成一下一下的晃動）
+          const dist = Math.hypot(pose.pos[0] - phys.x, pose.pos[2] - phys.z);
+          this.chasePos.set(phys.x + bx * dist, lerp(this.chasePos.y, pose.pos[1], damp(C.chaseStiffness, dt)), phys.z + bz * dist);
+          this.lookPos.set(phys.x - bx * C.chaseLookAhead, C.chaseLookHeight, phys.z - bz * C.chaseLookAhead);
+        }
       }
       cam.position.copy(this.chasePos);
-      // 高速與滑行時的輕微震動
+      // 路緣石震動：每壓過一條凸起上下一次（只在壓到路緣石時、幅度很小；CONFIG.camera.curbShake = 0 可關）
+      if (this.curb && this.curb.amount > 0.01 && C.curbShake > 0 && this.chaseMode !== 3) {
+        this.curbPhase = ((this.curbPhase || 0) + dt * this.curb.rate) % 1;
+        cam.position.y += Math.sin(this.curbPhase * Math.PI * 2) * C.curbShake * this.curb.amount;
+      }
+      // 震動：撞擊時的衝擊（bump）為主；高速／打滑震動預設關閉，用平滑正弦而非每幀亂數
       const skid = clamp((phys.slipR - 3) / 10, 0, 1);
-      this.shake = Math.max(this.shake * Math.exp(-6 * dt), speedT * 0.012 + skid * 0.02);
-      if (this.chaseMode !== 3) {
-        cam.position.x += (Math.random() - 0.5) * this.shake;
-        cam.position.y += (Math.random() - 0.5) * this.shake;
+      this.shake = Math.max(this.shake * Math.exp(-6 * dt), speedT * C.speedShake + skid * C.skidShake);
+      if (this.chaseMode !== 3 && this.shake > 0.0005) {
+        const t = performance.now() / 1000;
+        cam.position.x += Math.sin(t * 37) * Math.sin(t * 11) * this.shake;
+        cam.position.y += Math.sin(t * 29 + 1.3) * Math.sin(t * 7) * this.shake;
       }
       cam.lookAt(this.lookPos);
       cam.fov = lerp(cam.fov, fov, damp(4, dt));
