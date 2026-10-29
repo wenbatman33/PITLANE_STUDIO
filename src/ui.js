@@ -66,6 +66,7 @@ export class UI {
       this.hotspotEls[id] = btn;
     });
     this._ray = new THREE.Raycaster();
+    this._ray.firstHitOnly = true; // three-mesh-bvh：只找第一個交點
     this._v = new THREE.Vector3();
     this._w = new THREE.Vector3();
     this._frame = 0;

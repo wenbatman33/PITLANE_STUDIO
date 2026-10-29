@@ -2,8 +2,16 @@
 // 找不到檔案或解析失敗時回傳 null，由程式建模的車頂替
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { CONFIG } from './config.js';
 import { DEG } from './util.js';
+
+// 射線改走 BVH 加速（合併後的大網格做熱點遮擋判斷才不會卡）
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 const WHEEL_RE = /(wheel|tyre|tire|rim|rueda|llanta|pneu|roue|reifen)/i;
 const NOT_WHEEL_RE = /steer/i; // 方向盤不是輪子
@@ -17,7 +25,7 @@ function nameChain(obj, stop) {
 export async function loadCarModel(url, onProgress) {
   let gltf;
   try {
-    gltf = await new GLTFLoader().loadAsync(url, onProgress);
+    gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url, onProgress);
   } catch (err) {
     console.info('[carModel] 未載入外部模型，改用程式建模：', err?.message || err);
     return null;
@@ -167,6 +175,15 @@ export async function loadCarModel(url, onProgress) {
   const avg = (arr, k) => arr.reduce((a, w) => a + w[k], 0) / arr.length;
   const wheelbase = front.length && rear.length ? avg(front, 'z') - avg(rear, 'z') : null;
 
+  // 6) 依材質合併網格，大幅減少 draw call（車身、每顆輪子、DRS 各自合併）
+  const before = meshes.length;
+  const mergeTargets = [holder, ...wheels.map((w) => w.spin), ...(drs ? [drs] : [])];
+  mergeTargets.forEach(mergeByMaterial);
+  meshes.length = 0;
+  root.traverse((o) => o.isMesh && meshes.push(o));
+  for (const m of meshes) m.geometry.computeBoundsTree();
+  console.info(`[carModel] 合併網格：${before} → ${meshes.length}`);
+
   console.info(
     `[carModel] 載入完成：${meshes.length} 個網格、${materials.size} 種材質、找到 ${wheels.length} 顆輪子（${wheelMeshes.length} 個輪胎相關網格）、方向 ${rot}°、縮放 ${scale.toFixed(4)}`,
   );
@@ -182,4 +199,67 @@ export async function loadCarModel(url, onProgress) {
     drs,
     rotation: rot,
   };
+}
+
+// 量化（整數）屬性轉回 Float32，套用矩陣時才不會被截斷
+function toFloatGeometry(src) {
+  const geo = new THREE.BufferGeometry();
+  const get = ['getX', 'getY', 'getZ', 'getW'];
+  for (const [name, attr] of Object.entries(src.attributes)) {
+    const n = attr.count;
+    const s = attr.itemSize;
+    const arr = new Float32Array(n * s);
+    for (let i = 0; i < n; i++) for (let k = 0; k < s; k++) arr[i * s + k] = attr[get[k]](i);
+    geo.setAttribute(name, new THREE.BufferAttribute(arr, s));
+  }
+  if (src.index) geo.setIndex(Array.from(src.index.array));
+  return geo;
+}
+
+// 鏡像（行列式為負）的零件套用矩陣後三角形會反面，要把頂點順序翻回來
+function flipWinding(geo) {
+  if (!geo.index) geo.setIndex([...Array(geo.attributes.position.count).keys()]);
+  const idx = geo.index.array;
+  for (let i = 0; i < idx.length; i += 3) {
+    const t = idx[i + 1];
+    idx[i + 1] = idx[i + 2];
+    idx[i + 2] = t;
+  }
+  geo.index.needsUpdate = true;
+}
+
+function mergeByMaterial(group) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const buckets = new Map();
+  group.traverse((o) => {
+    if (!o.isMesh || o.isSkinnedMesh || Array.isArray(o.material) || o.morphTargetInfluences) return;
+    const g = o.geometry;
+    const key = [o.material.uuid, !!g.index, ...Object.keys(g.attributes).sort().map((k) => `${k}${g.attributes[k].itemSize}`)].join('|');
+    (buckets.get(key) || buckets.set(key, []).get(key)).push(o);
+  });
+  for (const list of buckets.values()) {
+    if (list.length < 2) continue;
+    const geos = list.map((m) => {
+      const g = toFloatGeometry(m.geometry);
+      // 統一成有 index 的幾何，mergeGeometries 才能合併
+      if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]);
+      const mtx = new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld);
+      g.applyMatrix4(mtx);
+      if (mtx.determinant() < 0) flipWinding(g);
+      return g;
+    });
+    const merged = mergeGeometries(geos, false);
+    geos.forEach((g) => g.dispose());
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, list[0].material);
+    mesh.name = `merged_${list[0].material.name || 'mat'}`;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    list.forEach((m) => {
+      m.removeFromParent();
+      m.geometry.dispose();
+    });
+  }
 }
