@@ -615,6 +615,12 @@ export function initDev(api) {
   fAudio.add(A, 'screech', 0, 1.5, 0.01).name('輪胎尖叫');
   fAudio.add(A, 'curb', 0, 1.5, 0.01).name('路緣石噠噠聲');
   fAudio.add(A, 'turbo', 0, 1.5, 0.01).name('渦輪');
+  fAudio.add(A, 'bright', 0.2, 3, 0.01).name('引擎音色亮度');
+  fAudio.add(A, 'rasp', 0, 2, 0.01).name('引擎粗糙顆粒');
+  fAudio.add(A, 'resonance', 0, 0.95, 0.01).name('排氣管共鳴');
+  fAudio.add(A, 'jitter', 0, 3, 0.01).name('燃燒不規則');
+  fAudio.add(A, 'body', 0, 2, 0.01).name('引擎渾厚度');
+  fAudio.add(A, 'bass', -6, 12, 0.5).name('低音加強 dB');
 
   // ================= ⏱ 動畫 =================
   const fAnim = gui.addFolder('⏱ 動畫與轉場').close();

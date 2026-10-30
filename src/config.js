@@ -196,6 +196,13 @@ export const CONFIG = {
     screech: 0.4,
     turbo: 0.25,
     curb: 0.5, // 壓到路緣石的噠噠聲
+    // 引擎音色（src/engineWorklet.js）
+    bright: 1.2, // 亮度：越大高頻越多、越尖
+    rasp: 0.4, // 粗糙顆粒感（太大會像吸塵器的嘶嘶聲）
+    resonance: 0.6, // 排氣管共鳴
+    jitter: 1, // 每次燃燒力道的不規則程度（0＝完全規律，像電子音）
+    body: 1.2, // 渾厚度：左右兩排汽缸的差異 → 點火頻率一半的低音（0＝只剩一個高音，像吸塵器）
+    bass: 4, // 低音加強 dB（250 Hz 以下）
   },
 
   assist: {

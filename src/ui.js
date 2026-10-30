@@ -251,6 +251,8 @@ export class UI {
       sectors: [...lt.querySelectorAll('.lt-sectors i')],
       last: $('.lt-last', lt),
       best: $('.lt-best', lt),
+      bestAny: $('.lt-bestany', lt),
+      badge: $('.lt-invalid', lt),
     };
     this.warnEl = this.elements.trackWarning;
     this.flash = { text: '', until: 0, kind: '' };
@@ -317,7 +319,9 @@ export class UI {
     const mode = this.levelName ? ` · ${this.levelName}` : '';
     set('lap', L.lap, (timer.lap === 0 ? '暖胎圈' : `LAP ${timer.lap}`) + mode);
     L.time.textContent = timer.running ? formatTime(timer.time) : '0:00.000';
+    // 出界的圈照樣計時，只在標題旁標「含出界」
     L.root.classList.toggle('invalid', timer.running && !timer.valid);
+    set('badge', L.badge, timer.excluded ? '示範接手' : '含出界');
     const d = timer.delta;
     set('delta', L.delta, d == null ? '' : `${d < 0 ? '−' : '+'}${Math.abs(d).toFixed(2)}`);
     L.delta.classList.toggle('faster', d != null && d < 0);
@@ -332,14 +336,15 @@ export class UI {
       set(`sec${i}`, el, label);
       el.className = st;
     });
-    set('last', L.last, timer.last ? formatTime(timer.last.time) + (timer.last.valid ? '' : ' ✕') : '--:--.---');
+    set('last', L.last, timer.last ? formatTime(timer.last.time) + (timer.last.valid ? '' : '・出界') : '--:--.---');
     set('best', L.best, timer.best ? formatTime(timer.best.time) : '--:--.---');
+    set('bestAny', L.bestAny, timer.bestAny ? formatTime(timer.bestAny.time) : '--:--.---');
 
     // 警告／訊息：逆向 > 出界 > 短暫訊息
     let text = '';
     let kind = '';
     if (timer.wrongWay > 1.2) text = '⚠ 逆向行駛';
-    else if (timer.offTrack) text = timer.running ? '賽道外・該圈不計' : '賽道外';
+    else if (timer.offTrack) text = timer.running ? '賽道外・本圈照樣計時（記為含出界）' : '賽道外';
     else if (now < this.flash.until) {
       text = this.flash.text;
       kind = this.flash.kind;

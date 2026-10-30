@@ -488,8 +488,11 @@ function stopDemo() {
   game.autopilot = null;
   document.body.classList.remove('demo');
   if (timer) {
-    // 接手當圈有一部分是示範開的，不計入
-    if (timer.running) timer.valid = false;
+    // 接手當圈有一部分是示範開的，兩種最佳圈都不列入
+    if (timer.running) {
+      timer.valid = false;
+      timer.excluded = true;
+    }
     timer.noSave = false;
   }
 }
@@ -517,7 +520,7 @@ function updateTrack(dt) {
   guideLine?.update(phys.speed);
   for (const e of timer.events.splice(0)) {
     if (e.type === 'lap') {
-      const tag = !e.valid ? '（該圈不計）' : e.best ? '・最佳圈！' : '';
+      const tag = e.excluded ? '（示範接手・不列入紀錄）' : e.best ? '・最佳圈！' : !e.valid ? (e.bestAny ? '（含出界・含出界最佳！）' : '（含出界）') : '';
       ui.flashMessage(`LAP ${e.lap}  ${formatTime(e.time)} ${tag}`, 'info', 4);
     }
   }
@@ -804,7 +807,7 @@ async function boot() {
 
   if (DEV_ENABLED) {
     // 方便在 console 檢查場景
-    window.__pitlane = { THREE, scene, car, camera, rig, phys, world, track, timer, guide, physParams };
+    window.__pitlane = { THREE, scene, car, camera, rig, phys, world, track, timer, guide, physParams, audio };
     const { initDev } = await import('./dev.js');
     devApi = initDev({
       renderer,

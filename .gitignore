@@ -4,3 +4,5 @@ tuning/
 .claude/
 .DS_Store
 .wrangler/
+test-output/
+_backup/

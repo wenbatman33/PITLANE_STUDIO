@@ -166,7 +166,7 @@ try {
     if (s.lap > lapsSeen) {
       if (lapsSeen >= 1 && s.last) {
         laps.push({ time: s.last.time, valid: s.last.valid, outs });
-        console.log(`  第 ${laps.length} 圈 ${fmt(s.last.time)}｜${s.last.valid ? '有效' : '該圈不計'}｜四輪出界 ${outs.length} 次${outs.length ? `（${outs.join(', ')} m）` : ''}`);
+        console.log(`  第 ${laps.length} 圈 ${fmt(s.last.time)}｜${s.last.valid ? '有效' : '含出界'}｜四輪出界 ${outs.length} 次${outs.length ? `（${outs.join(', ')} m）` : ''}`);
       }
       outs = [];
       lapsSeen = s.lap;

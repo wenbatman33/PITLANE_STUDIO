@@ -1,10 +1,10 @@
-# PITLANE STUDIO
+# F1 RACE
 
 F1 互動展示間 + 自由駕駛（Three.js + Vite）。
 
 - 展示間：拖曳旋轉、滾輪縮放、點熱點看零件特寫（前翼、輪胎、Halo、側箱、動力單元、尾翼 DRS、底板）
-- 賽道：真實 Monza 賽道（白色地面上只有賽道），單人計時練習：圈速、三分段、與最佳圈即時差距、出界該圈不計、逆向警告、小地圖
-- 駕駛：甩尾物理、胎痕與輪胎煙霧、四種鏡頭、Web Audio 合成引擎聲
+- 賽道：真實 Monza 賽道（白色地面上只有賽道），單人計時練習：圈速、三分段、與最佳圈即時差距、出界照樣計時（另記含出界最佳圈，有效最佳圈只收沒出界的圈）、逆向警告、小地圖
+- 駕駛：甩尾物理、胎痕與輪胎煙霧、四種鏡頭、Web Audio 合成引擎聲（AudioWorklet 逐次燃燒合成 1.6L V6 渦輪混合動力：點火頻率＝轉速/60×3、左右兩排汽缸差異產生的低音、排氣管共鳴、渦輪悶住高頻、升檔斷火、降檔補油；音色可在 DEV 工具「🔊 音效」調）
 - 支援鍵盤、手把、手機觸控
 
 ## 開發
@@ -87,6 +87,7 @@ LINE=best TRACK=Suzuka node scripts/human-test.mjs standard  # 照「最佳路�
 node scripts/brake-turn.mjs standard         # 60~300 km/h 邊煞車邊轉向：車尾會甩出幾度
 node scripts/camera-jitter.mjs               # 全油門加速 14 秒：車子在畫面上的上下抖動（像素）
 node scripts/lap-test.mjs demo               # 遊戲內示範駕駛
+node scripts/engine-sound.mjs [舊版 audio.js]  # 真 Chrome 離線算出引擎聲 WAV（test-output/），量各段音量、頻譜重心、2–5 kHz 刺耳區比例；需 npm run dev
 TRACK=Suzuka node scripts/race-test.mjs person standard   # 對手比賽整場模擬（碰撞、超車、出界、重生）
 SOLO=冠軍 TRACK=Zandvoort node scripts/race-test.mjs idle  # 單獨測一台 AI
 ```

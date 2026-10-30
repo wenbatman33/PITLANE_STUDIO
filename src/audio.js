@@ -1,6 +1,7 @@
-// Web Audio 合成音效：V6 引擎（隨轉速變調）、渦輪聲、輪胎尖叫、撞錐聲；不需要音檔
+// Web Audio 合成音效：V6 渦輪混合動力引擎（AudioWorklet 逐次燃燒合成）、渦輪聲、輪胎尖叫、撞錐聲；不需要音檔
 import { CONFIG } from './config.js';
 import { clamp } from './util.js';
+import engineWorkletUrl from './engineWorklet.js?url';
 
 export class EngineAudio {
   constructor() {
@@ -8,7 +9,13 @@ export class EngineAudio {
     this.muted = false;
     this.running = false;
     this.lastThrottle = 0;
+    this.lastRpm = 0;
     this.popCooldown = 0;
+    this.cutTimer = 0;
+    this.blipTimer = 0;
+    this.spool = 0;
+    this.engine = null;
+    this.ready = Promise.resolve();
   }
 
   // 必須在使用者手勢內呼叫（iOS 限制）
@@ -22,45 +29,43 @@ export class EngineAudio {
     const ctx = new AC();
     this.ctx = ctx;
 
+    // 總輸出：壓縮器把突然的大聲收住，整體聽起來比較穩、不刺耳
+    this.comp = ctx.createDynamicsCompressor();
+    this.comp.threshold.value = -18;
+    this.comp.knee.value = 12;
+    this.comp.ratio.value = 3.5;
+    this.comp.attack.value = 0.005;
+    this.comp.release.value = 0.15;
+    this.comp.connect(ctx.destination);
     this.master = ctx.createGain();
     this.master.gain.value = 0;
-    this.master.connect(ctx.destination);
+    this.master.connect(this.comp);
 
-    // 引擎：三組振盪器 → 失真 → 低通
+    // 引擎：AudioWorklet 合成 → 稍微壓低 3 kHz 附近（人耳最敏感、最容易覺得吵的區段）
     this.engineGain = ctx.createGain();
     this.engineGain.gain.value = 0;
-    this.filter = ctx.createBiquadFilter();
-    this.filter.type = 'lowpass';
-    this.filter.Q.value = 1.4;
-    const shaper = ctx.createWaveShaper();
-    shaper.curve = makeDistortion(3.2);
-    shaper.oversample = '2x';
-    this.oscs = [
-      { type: 'sawtooth', mult: 1, gain: 0.42 },
-      { type: 'square', mult: 0.5, gain: 0.22 },
-      { type: 'sawtooth', mult: 2, gain: 0.12 },
-      { type: 'triangle', mult: 3, gain: 0.06 },
-    ].map((o) => {
-      const osc = ctx.createOscillator();
-      osc.type = o.type;
-      osc.frequency.value = 200 * o.mult;
-      const g = ctx.createGain();
-      g.gain.value = o.gain;
-      osc.connect(g).connect(shaper);
-      osc.start();
-      return { osc, mult: o.mult };
-    });
-    // 轉速抖動讓聲音比較「粗」
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 31;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 6;
-    lfo.connect(lfoGain);
-    this.oscs.forEach((o) => lfoGain.connect(o.osc.detune));
-    lfo.start();
-    shaper.connect(this.filter).connect(this.engineGain).connect(this.master);
+    this.engineEq = ctx.createBiquadFilter();
+    this.engineEq.type = 'peaking';
+    this.engineEq.frequency.value = 3000;
+    this.engineEq.Q.value = 0.9;
+    this.engineEq.gain.value = -4;
+    // 低音加強：讓引擎聲有厚度
+    this.engineBass = ctx.createBiquadFilter();
+    this.engineBass.type = 'lowshelf';
+    this.engineBass.frequency.value = 250;
+    this.engineBass.gain.value = CONFIG.audio.bass ?? 4;
+    this.engineGain.connect(this.engineBass).connect(this.engineEq).connect(this.master);
+    this.ready = ctx.audioWorklet
+      ? ctx.audioWorklet
+          .addModule(engineWorkletUrl)
+          .then(() => {
+            this.engine = new AudioWorkletNode(ctx, 'f1-engine', { numberOfInputs: 0, outputChannelCount: [1] });
+            this.engine.connect(this.engineGain);
+          })
+          .catch(() => this.buildFallbackEngine())
+      : Promise.resolve(this.buildFallbackEngine());
 
-    // 渦輪哨音
+    // 渦輪哨音（收油時最明顯）
     this.turbo = ctx.createOscillator();
     this.turbo.type = 'sine';
     this.turboGain = ctx.createGain();
@@ -100,6 +105,21 @@ export class EngineAudio {
     this.applyVolume();
   }
 
+  // 不支援 AudioWorklet 時（例如用區網 http 連線的手機）：單一鋸齒波＋低通，不加失真
+  buildFallbackEngine() {
+    const ctx = this.ctx;
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 0.7;
+    const g = ctx.createGain();
+    g.gain.value = 0.35;
+    osc.connect(lp).connect(g).connect(this.engineGain);
+    osc.start();
+    this.fallback = { osc, lp };
+  }
+
   applyVolume() {
     if (!this.ctx) return;
     const v = this.muted || !this.running ? 0 : CONFIG.audio.master;
@@ -122,13 +142,35 @@ export class EngineAudio {
     const A = CONFIG.audio;
     const t = this.ctx.currentTime;
     const rpmN = clamp((rpm - 4000) / 9200, 0, 1);
-    // V6 四行程：每轉點火 3 次
-    const f = (rpm / 60) * 3 * 0.5;
-    for (const o of this.oscs) o.osc.frequency.setTargetAtTime(f * o.mult, t, 0.02);
-    this.filter.frequency.setTargetAtTime(500 + rpmN * 3800 + throttle * 1800, t, 0.04);
-    this.engineGain.gain.setTargetAtTime(A.engine * (0.28 + throttle * 0.42 + rpmN * 0.3), t, 0.05);
-    this.turbo.frequency.setTargetAtTime(2200 + rpmN * 3600, t, 0.08);
-    this.turboGain.gain.setTargetAtTime(A.turbo * 0.05 * throttle * rpmN, t, 0.15);
+    const rate = dt > 0 ? (rpm - this.lastRpm) / dt : 0;
+    // 升檔：全油門時轉速瞬間掉下 → 極短斷火；降檔：收油時轉速往上跳 → 補油（brap）
+    if (throttle > 0.5 && rate < -15000) this.cutTimer = 0.035;
+    if (throttle < 0.2 && rate > 9000 && this.lastRpm > 0) this.blipTimer = 0.07;
+    this.cutTimer = Math.max(0, this.cutTimer - dt);
+    this.blipTimer = Math.max(0, this.blipTimer - dt);
+    const load = Math.max(throttle, this.blipTimer > 0 ? 0.55 : 0);
+
+    if (this.engine) {
+      const P = this.engine.parameters;
+      P.get('rpm').setTargetAtTime(rpm, t, 0.012);
+      P.get('load').setTargetAtTime(load, t, 0.025);
+      P.get('cut').setTargetAtTime(this.cutTimer > 0 ? 1 : 0, t, 0.004);
+      for (const k of ['bright', 'rasp', 'resonance', 'jitter', 'body']) {
+        const v = A[k] ?? P.get(k).defaultValue;
+        if (P.get(k).value !== v) P.get(k).value = v;
+      }
+    } else if (this.fallback) {
+      this.fallback.osc.frequency.setTargetAtTime((rpm / 60) * 3, t, 0.02);
+      this.fallback.lp.frequency.setTargetAtTime((700 + load * 1800 + rpmN * 800) * (A.bright ?? 1), t, 0.04);
+    }
+    this.engineGain.gain.setTargetAtTime(A.engine * (this.fallback ? 0.4 + 0.6 * load : 1), t, 0.05);
+    if (this.engineBass.gain.value !== (A.bass ?? 4)) this.engineBass.gain.value = A.bass ?? 4;
+
+    // 渦輪：跟著油門與轉速慢慢轉起來、收油後慢慢停；收油時哨音最明顯
+    const spoolTarget = throttle * rpmN;
+    this.spool += (spoolTarget - this.spool) * clamp(dt / (spoolTarget > this.spool ? 0.5 : 1.4), 0, 1);
+    this.turbo.frequency.setTargetAtTime(1500 + this.spool * 3000, t, 0.08);
+    this.turboGain.gain.setTargetAtTime(A.turbo * 0.03 * this.spool * (0.3 + 0.7 * (1 - throttle)), t, 0.1);
     this.screechFilter.frequency.setTargetAtTime(950 + skid * 650, t, 0.05);
     this.screechGain.gain.setTargetAtTime(A.screech * clamp(skid, 0, 1) * 0.6, t, 0.06);
     if (this.rumble) {
@@ -137,15 +179,16 @@ export class EngineAudio {
       this.rumbleGain.gain.setTargetAtTime((A.curb ?? 0.5) * amt * 0.5, t, 0.03);
     }
 
-    // 高轉速收油時的回火爆音
+    // 高轉速收油：排氣管裡幾聲輕微的劈啪（混合動力 F1 不像舊引擎那樣大聲回火）
     this.popCooldown -= dt;
-    if (this.lastThrottle > 0.6 && throttle < 0.1 && rpm > 8500) this.pops = 4 + Math.floor(Math.random() * 4);
+    if (this.lastThrottle > 0.6 && throttle < 0.1 && rpm > 9500) this.pops = 1 + Math.floor(Math.random() * 3);
     if (this.pops > 0 && this.popCooldown <= 0) {
-      this.burst(0.06 + Math.random() * 0.05, 220 + Math.random() * 300, 0.5 * A.engine);
+      this.burst(0.04 + Math.random() * 0.04, 300 + Math.random() * 300, 0.18 * A.engine);
       this.pops--;
-      this.popCooldown = 0.05 + Math.random() * 0.09;
+      this.popCooldown = 0.06 + Math.random() * 0.1;
     }
     this.lastThrottle = throttle;
+    this.lastRpm = rpm;
   }
 
   // 短促噪音（回火、撞錐）
@@ -169,14 +212,4 @@ export class EngineAudio {
   hit() {
     this.burst(0.18, 180, 0.9);
   }
-}
-
-function makeDistortion(k) {
-  const n = 1024;
-  const curve = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const x = (i / (n - 1)) * 2 - 1;
-    curve[i] = Math.tanh(k * x) / Math.tanh(k);
-  }
-  return curve;
 }

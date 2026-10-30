@@ -561,9 +561,6 @@ body.track-mode .ui-el[data-ui='driftMeter'] {
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
-.laptimer.invalid .lt-time {
-  color: var(--ink-3);
-}
 .lt-delta {
   min-height: 1.3em;
   font-size: 1em;

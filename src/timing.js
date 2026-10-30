@@ -1,4 +1,5 @@
-// 單人計時練習：圈速、三分段、與最佳圈的即時差距、出界該圈不計、逆向偵測
+// 單人計時練習：圈速、三分段、與最佳圈的即時差距、逆向偵測
+// 出界的圈照樣計時，另外記一個「含出界最佳圈」；有效最佳圈只收沒出界的圈
 import { CONFIG } from './config.js';
 import { storageGet, storageSet } from './util.js';
 
@@ -19,6 +20,11 @@ export class LapTimer {
     // 舊版重複計圈留下的異常紀錄（短於 30 秒）直接忽略
     this.best = saved?.time > 30 ? saved : null; // { time, sectors, trace }
     this.bestSectors = saved?.bestSectors || [null, null, null];
+    this.anyKey = `pitlane.bestAny.${track.id}`;
+    const savedAny = storageGet(this.anyKey, null);
+    this.bestAny = savedAny?.time > 30 ? savedAny : null; // 含出界最佳圈（所有圈裡最快的，不論有沒有出界）{ time, trace }
+    // 舊紀錄只有有效最佳圈：含出界最佳圈至少跟它一樣快
+    if (this.best && (!this.bestAny || this.best.time < this.bestAny.time)) this.bestAny = { time: this.best.time, trace: this.best.trace };
     this.buckets = Math.ceil(track.length / BUCKET);
     this.events = [];
     this.reset();
@@ -33,6 +39,7 @@ export class LapTimer {
     this.sectors = [null, null, null];
     this.sectorState = ['', '', ''];
     this.valid = true;
+    this.excluded = false; // 示範駕駛開過一部分的圈：兩種最佳圈都不收
     this.prevS = null;
     this.last = null;
     this.wrongWay = 0;
@@ -72,7 +79,8 @@ export class LapTimer {
       if (this.sectorIdx < 2 && this.prevS < b[this.sectorIdx] && s >= b[this.sectorIdx]) this.split(this.sectorIdx);
       const k = Math.min(this.buckets - 1, Math.floor(s / BUCKET));
       if (Number.isNaN(this.trace[k])) this.trace[k] = this.time;
-      const ref = this.best?.trace?.[k];
+      // 即時差距：跟有效最佳圈比；還沒有有效最佳圈時跟含出界最佳圈比
+      const ref = (this.best || this.bestAny)?.trace?.[k];
       this.delta = ref != null && !Number.isNaN(ref) ? this.time - ref : null;
     }
 
@@ -108,11 +116,17 @@ export class LapTimer {
       this.split(2);
       const time = this.time;
       this.last = { time, valid: this.valid, sectors: [...this.sectors], states: [...this.sectorState] };
-      const isBest = !this.noSave && this.valid && (!this.best || time < this.best.time);
-      if (isBest) this.best = { time, sectors: [...this.sectors], trace: Array.from(this.trace) };
       // 示範駕駛的圈速不寫進玩家紀錄
-      if (!this.noSave) storageSet(this.key, this.best ? { ...this.best, bestSectors: this.bestSectors } : { bestSectors: this.bestSectors });
-      this.events.push({ type: 'lap', lap: this.lap, time, valid: this.valid, best: isBest });
+      const counts = !this.noSave && !this.excluded;
+      const isBest = counts && this.valid && (!this.best || time < this.best.time);
+      if (isBest) this.best = { time, sectors: [...this.sectors], trace: Array.from(this.trace) };
+      const isBestAny = counts && (!this.bestAny || time < this.bestAny.time);
+      if (isBestAny) this.bestAny = { time, trace: Array.from(this.trace) };
+      if (!this.noSave) {
+        storageSet(this.key, this.best ? { ...this.best, bestSectors: this.bestSectors } : { bestSectors: this.bestSectors });
+        if (isBestAny) storageSet(this.anyKey, this.bestAny);
+      }
+      this.events.push({ type: 'lap', lap: this.lap, time, valid: this.valid, best: isBest, bestAny: isBestAny, excluded: this.excluded });
     }
     this.lap++;
     this.running = true;
@@ -122,13 +136,16 @@ export class LapTimer {
     this.sectors = [null, null, null];
     this.sectorState = ['', '', ''];
     this.valid = true;
+    this.excluded = false;
     this.trace = new Float32Array(this.buckets).fill(NaN);
     this.delta = null;
   }
 
   clearBest() {
     this.best = null;
+    this.bestAny = null;
     this.bestSectors = [null, null, null];
     storageSet(this.key, null);
+    storageSet(this.anyKey, null);
   }
 }
